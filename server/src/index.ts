@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import path from 'path'; //  ADDED: Essential for production asset path resolution
 // FIXED: Retained explicit .js extension for ES Module runtime compliance under NodeNext resolution
 import { supabase } from './config/supabase.js';
 
@@ -1161,6 +1162,19 @@ app.delete('/api/teams/:id', requireAuth(['Admin']), async (req: Request, res: R
   } catch {
     return res.status(500).json({ error: "Failed to delete team entry." });
   }
+});
+
+/** =======================================================
+ * PRODUCTION FRONTEND STATIC ASSET DISTRIBUTION GLUE
+ * ======================================================= */
+const clientDistPath = path.join(process.cwd(), 'client/dist');
+
+// Serve the static JS, CSS, and media bundles from the compiled directory 
+app.use(express.static(clientDistPath));
+
+// Catch-All Routing: Guides initial page hits and refreshes cleanly to React Router
+app.get('*', (req: Request, res: Response) => {
+  res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 
 const PORT = parseInt(process.env.PORT || '5001', 10);
