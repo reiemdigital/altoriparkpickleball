@@ -2,7 +2,7 @@
   "name": "altori-park-pickleball-app",
   "version": "1.0.0",
   "scripts": {
-    "install-deps": "npm install --prefix server && npm install --prefix client ----include=dev",
+    "install-deps": "npm install --prefix server && npm install --prefix client --include=dev",
     "build-client": "npm run build --prefix client",
     "build": "npm run install-deps && npm run build-client",
     "start": "node server/index.ts"
