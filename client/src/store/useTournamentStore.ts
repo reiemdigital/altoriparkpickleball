@@ -2,8 +2,12 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
-// Aligning with your backend server URL configurations
-const API_URL = 'http://192.168.8.110:5001'; 
+// Smart Environment Detection:
+// In production, Axios will route queries relatively via your live Render host URL.
+// In local development, it falls back seamlessly to your local machine network address.
+const API_URL = import.meta.env.PROD 
+  ? window.location.origin 
+  : 'http://192.168.8.110:5001'; 
 
 export interface TournamentEvent {
   id: string;
