@@ -5,6 +5,6 @@
     "install-deps": "npm install --prefix server && npm install --prefix client --include=dev",
     "build-client": "npm run build --prefix client",
     "build": "npm run install-deps && npm run build-client",
-    "start": "node server/index.ts"
+    "start": "node server/src/index.ts"
   }
 }
