@@ -1,0 +1,69 @@
+// server/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Team {
+  id            String    @id @default(uuid())
+  name          String
+  category      String    @default("Open Doubles(Coed)") // NEW: Categorizes the division entry
+  contactNo     String?                                  // NEW: Primary Contact number tracking
+  address       String?                                  // NEW: Residential or club location trace
+  email         String?                                  // NEW: Contact electronic mail log
+  players       Player[] 
+  pointsFor     Int       @default(0) 
+  pointsAgainst Int       @default(0) 
+  wins          Int       @default(0)
+  matchesPlayed Int       @default(0)
+  groupId       String?  
+  
+  matchesAsTeam1 Match[]  @relation("Team1")
+  matchesAsTeam2 Match[]  @relation("Team2")
+}
+
+model Player {
+  id     String @id @default(uuid())
+  name   String
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id])
+}
+
+model CategorySetting {
+  category String @id // The category name acts as the unique lookup key
+  maxSlots Int    @default(16) // Editable capacity cap setting
+  groupCount Int    @default(1) // NEW: Tracks how many groups this specific division is split into
+}
+
+model Match {
+  id              String      @id @default(uuid())
+  status          MatchStatus @default(PENDING) 
+  type            MatchType   @default(ROUND_ROBIN) 
+  bracketPosition String?     // NEW: Tracks specific playoff tree nodes (e.g., "SF1", "SF2", "FINALS")
+  team1Id         String
+  team1           Team        @relation("Team1", fields: [team1Id], references: [id])
+  team2Id         String
+  team2           Team        @relation("Team2", fields: [team2Id], references: [id])
+  score1          Int         @default(0)
+  score2          Int         @default(0)
+  courtId         Int?        
+  startTime       DateTime?
+  endTime         DateTime?
+  winnerId        String?
+}
+
+enum MatchStatus {
+  PENDING
+  LIVE
+  FINISHED
+}
+
+enum MatchType {
+  ROUND_ROBIN
+  ELIMINATION
+}

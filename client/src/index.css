@@ -1,0 +1,19 @@
+/* client/src/index.css */
+@import "tailwindcss";
+
+@variant dark (.dark &);
+
+@theme {
+  --color-brand-black: #000000;
+  --color-brand-dark: #020617; 
+  --color-brand-accent: #7400d9;
+  --color-brand-live: #ef4444;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    /* Premium adjustment: softer slate-50 canvas with precise text tracking */
+    @apply bg-slate-50 text-slate-800 dark:bg-brand-black dark:text-slate-100 antialiased transition-colors duration-200 tracking-tight;
+  }
+}
