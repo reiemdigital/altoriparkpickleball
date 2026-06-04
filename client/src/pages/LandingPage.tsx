@@ -233,12 +233,12 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex items-center justify-between text-[10px] font-mono font-bold text-slate-500">
+                {/* <div className="pt-2 flex items-center justify-between text-[10px] font-mono font-bold text-slate-500">
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-[#088505]" /> 100% Digital Matrix Sync
                   </span>
                   <span>v2.4 Live Cloud</span>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
