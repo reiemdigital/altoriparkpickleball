@@ -18,9 +18,14 @@ export function TournamentGateway() {
   const { gatewayData, setGatewayData } = useTournamentStore();
   const [loading, setLoading] = useState(true);
   
-  // 🛠️ ADMIN STATE HANDLERS
+  // 🛠️ ADMIN & AUTHENTICATION STATE HANDLERS
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // UI GUARD: Extract the authenticated user role from storage
+  // (Note: If your architecture uses a custom useAuth() hook, swap this line to read from your store)
+  const userRole = localStorage.getItem('role') || localStorage.getItem('user_role');
+  const isAdmin = userRole === 'Admin';
 
   // Unified data re-fetch action to clear race conditions
   const fetchGatewayInfo = React.useCallback(async () => {
@@ -159,18 +164,21 @@ export function TournamentGateway() {
             <p className="text-xs text-slate-500 mt-0.5">Review category specifications, remaining team limits, and tier payouts.</p>
           </div>
           <div className="flex items-center gap-4">
-            {/* INLINE CRUD TOGGLE OVERLAY TRIGGER */}
-            <button
-              onClick={() => setIsAdminMode(!isAdminMode)}
-              className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition-all cursor-pointer ${
-                isAdminMode 
-                  ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' 
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Settings className={`h-3.5 w-3.5 ${isAdminMode ? 'animate-spin' : ''}`} />
-              {isAdminMode ? 'Exit Admin Mode' : 'Manage Slots'}
-            </button>
+            
+            {/* 🛡️ SECURITY LAYER: Only mount the slot configuration tools if user profile clearance checks out */}
+            {isAdmin && (
+              <button
+                onClick={() => setIsAdminMode(!isAdminMode)}
+                className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isAdminMode 
+                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' 
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Settings className={`h-3.5 w-3.5 ${isAdminMode ? 'animate-spin' : ''}`} />
+                {isAdminMode ? 'Exit Admin Mode' : 'Manage Slots'}
+              </button>
+            )}
 
             {tournament.guidelines_url && (
               <a href={tournament.guidelines_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-[#088505] hover:underline flex items-center gap-1">
@@ -182,16 +190,15 @@ export function TournamentGateway() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {categories.map((cat) => {
-            // 📊 COMPUTE PROGRESS BAR METRIC CONFIGURATIONS
             const maxSlots = cat.max_slots || 16;
             const filledSlots = cat.registered_teams_count || 0;
             const fillPercentage = Math.min(100, (filledSlots / maxSlots) * 100);
 
-            let progressBarColor = "bg-[#088505]"; // Default Green
+            let progressBarColor = "bg-[#088505]"; 
             if (fillPercentage >= 100) {
-              progressBarColor = "bg-purple-500"; // Sold Out Muted Purple
+              progressBarColor = "bg-purple-500"; 
             } else if (fillPercentage >= 80) {
-              progressBarColor = "bg-amber-500 animate-pulse"; // Filling Fast Pulsing Amber
+              progressBarColor = "bg-amber-500 animate-pulse"; 
             }
 
             return (
@@ -206,7 +213,6 @@ export function TournamentGateway() {
                       </div>
                     </div>
 
-                    {/* DYNAMIC SLOT AVAILABILITY TAG */}
                     <span className={`px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase tracking-wider shrink-0 ${
                       fillPercentage >= 100 
                         ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400' 
@@ -218,7 +224,6 @@ export function TournamentGateway() {
                     </span>
                   </div>
 
-                  {/* 📊 UI/UX BAR TRACK ACCENT */}
                   <div className="space-y-1.5 pt-1">
                     <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                       <div 
@@ -233,8 +238,8 @@ export function TournamentGateway() {
                   </div>
                 </div>
 
-                {/* INLINE REVISION BOX PANELS FOR LIVE MUTATION ACCESS */}
-                {isAdminMode && (
+                {/* 🛡️ DEFENSIVE PROTECTION: Only render input panels if the user is verified as an Admin */}
+                {isAdmin && isAdminMode && (
                   <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-150">
                     <span className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider">Set Capacity Threshold:</span>
                     <div className="flex items-center gap-1.5 relative">
@@ -257,7 +262,6 @@ export function TournamentGateway() {
                   </div>
                 )}
 
-                {/* PRIZE POOLS ROW CARD */}
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/60 text-center text-[11px] font-mono">
                   <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-2">
                     <div className="text-amber-400 font-bold">🥇 1st Place</div>
