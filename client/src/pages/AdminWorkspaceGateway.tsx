@@ -238,7 +238,7 @@ export function AdminWorkspaceGateway() {
                 type="text" 
                 value={loginUsername} 
                 onChange={(e) => setLoginUsername(e.target.value)} 
-                placeholder="e.g. referee_raymond" 
+                placeholder="e.g. Admin" 
                 required
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" 
               />

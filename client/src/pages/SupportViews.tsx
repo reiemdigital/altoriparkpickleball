@@ -130,8 +130,8 @@ export function UnderConstructionView() {
         <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">Our engineering team is packaging this asset module context for the cloud. Roster integration hooks will activate shortly!</p>
       </div>
       <div className="flex flex-col gap-2 pt-2">
-        <Link to="/tournaments" className="bg-[#088505] text-white font-bold font-mono py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer">
-          <Trophy className="h-3.5 w-3.5" /> View Active Tournaments
+        <Link to="/LandingPage" className="bg-[#088505] text-white font-bold font-mono py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer">
+          <Trophy className="h-3.5 w-3.5" /> Back Home
         </Link>
       </div>
     </div>
