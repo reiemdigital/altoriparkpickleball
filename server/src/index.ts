@@ -289,6 +289,27 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
   const { tournamentId } = req.params;
 
   try {
+    // 🛡️ SERVER-SIDE IDENTITY DETECTION
+    // Soft-check incoming authentication tokens from cookies or bearer headers seamlessly
+    let serverVerifiedAdmin = false;
+    try {
+      let token = req.cookies?.token;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
+      
+      if (token) {
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: string };
+        if (decoded && decoded.role === 'Admin') {
+          serverVerifiedAdmin = true;
+        }
+      }
+    } catch {
+      // Soft-fail: If token is expired or missing, fall back to guest spectator view safely
+      serverVerifiedAdmin = false;
+    }
+
     const { data: tournament, error: tournamentError } = await supabase
       .from('tournaments')
       .select('*')
@@ -304,13 +325,13 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
     }
 
     const { data: categories, error: categoriesError } = await supabase
-  .from('tournament_categories_matrix') // 🔥 SWAPPED: Now targets our dynamic, self-calculating view
-  .select('*')
-  .eq('tournament_id', tournamentId);
+      .from('tournament_categories_matrix')
+      .select('*')
+      .eq('tournament_id', tournamentId);
 
-if (categoriesError) {
-  return res.status(400).json({ error: categoriesError.message });
-}
+    if (categoriesError) {
+      return res.status(400).json({ error: categoriesError.message });
+    }
 
     const { count: liveMatchesCount, error: matchesCountError } = await supabase
       .from('matches')
@@ -331,13 +352,15 @@ if (categoriesError) {
       return res.status(400).json({ error: teamsCountError.message });
     }
 
+    // 🔥 RETURN THE VERIFIED FLAG
     return res.status(200).json({
       tournament,
       categories: categories || [],
       stats: {
         liveMatchesCount: liveMatchesCount || 0,
         registeredPlayersCount: registeredPlayersCount || 0
-      }
+      },
+      isAdmin: serverVerifiedAdmin // Embedded server-verified clearance flag
     });
 
   } catch {

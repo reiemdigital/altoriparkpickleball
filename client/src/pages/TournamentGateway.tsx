@@ -18,20 +18,16 @@ export function TournamentGateway() {
   const { gatewayData, setGatewayData } = useTournamentStore();
   const [loading, setLoading] = useState(true);
   
-  // 🛠️ ADMIN & AUTHENTICATION STATE HANDLERS
+  // 🛠️ ADMIN MODE LAYOUT STATE HANDLERS
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  // UI GUARD: Extract the authenticated user role from storage
-  // (Note: If your architecture uses a custom useAuth() hook, swap this line to read from your store)
-  const userRole = localStorage.getItem('role') || localStorage.getItem('user_role');
-  const isAdmin = userRole === 'Admin';
 
   // Unified data re-fetch action to clear race conditions
   const fetchGatewayInfo = React.useCallback(async () => {
     if (!tournamentId) return;
     try {
-      const res = await axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/gateway`);
+      // Pass credentials to ensure the backend reads HTTP HttpOnly session cookies cleanly
+      const res = await axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/gateway`, { withCredentials: true });
       setGatewayData(res.data);
     } catch (err) {
       console.error("Gateway data compilation handshake error:", err);
@@ -94,7 +90,9 @@ export function TournamentGateway() {
     );
   }
 
-  const { tournament, categories, stats } = gatewayData;
+  // 🔥 EXTRACT THE SERVER VERIFIED ADMINISTRATIVE STATUS FROM GATEWAY DATA PAYLOAD
+  // @ts-expect-error (prevents local compilation breaks if your store payload contract initial state is strictly typed)
+  const { tournament, categories, stats, isAdmin } = gatewayData;
 
   return (
     <div className="animate-in fade-in duration-300 w-full flex flex-col min-h-screen bg-slate-950 text-slate-100">
@@ -165,7 +163,7 @@ export function TournamentGateway() {
           </div>
           <div className="flex items-center gap-4">
             
-            {/* 🛡️ SECURITY LAYER: Only mount the slot configuration tools if user profile clearance checks out */}
+            {/* 🛡️ SECURITY LAYER: Bound explicitly to the server verified administrative context boolean flag */}
             {isAdmin && (
               <button
                 onClick={() => setIsAdminMode(!isAdminMode)}
@@ -238,7 +236,7 @@ export function TournamentGateway() {
                   </div>
                 </div>
 
-                {/* 🛡️ DEFENSIVE PROTECTION: Only render input panels if the user is verified as an Admin */}
+                {/* 🛡️ INLINE CAPACITY CONFIGURATION PANEL */}
                 {isAdmin && isAdminMode && (
                   <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-150">
                     <span className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider">Set Capacity Threshold:</span>
