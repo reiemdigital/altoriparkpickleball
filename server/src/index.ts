@@ -484,6 +484,96 @@ app.post('/api/tournaments/:id/seed-categories', requireAuth(['Admin']), async (
   }
 });
 
+// server/src/index.ts
+
+// 1. CREATE NEW TOURNAMENT CATEGORY DIVISION
+app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), async (req: Request, res: Response) => {
+  const { tournamentId } = req.params;
+  const { 
+    category_name, gender_division, entry_fee, max_slots, 
+    prize_first, prize_second, prize_third 
+  } = req.body;
+
+  if (!category_name) {
+    return res.status(400).json({ error: "Validation failure: Division category name is required." });
+  }
+
+  try {
+    const { data: newCategory, error } = await supabase
+      .from('categories')
+      .insert([
+        {
+          tournament_id: tournamentId,
+          category_name: category_name.trim(),
+          gender_division: gender_division || 'Mixed',
+          entry_fee: parseFloat(entry_fee) || 0.00,
+          max_slots: parseInt(max_slots, 10) || 16,
+          prize_first: parseFloat(prize_first) || 0.00,
+          prize_second: parseFloat(prize_second) || 0.00,
+          prize_third: parseFloat(prize_third) || 0.00
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Notify all active visitors to re-hydrate their dashboards instantly
+    io.to(`tournament:${tournamentId}`).emit('registration-updated');
+    return res.status(201).json(newCategory);
+  } catch (err: any) {
+    console.error("Category creation error:", err);
+    return res.status(500).json({ error: "Failed to create division category node." });
+  }
+});
+
+// 2. SECURE/DEFENSIVE DELETE CATEGORY DIVISION
+app.delete('/api/categories/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    // A. Fetch category context first to know which tournament room to broadcast to later
+    const { data: category, error: catFetchError } = await supabase
+      .from('categories')
+      .select('tournament_id')
+      .eq('category_id', id)
+      .maybeSingle();
+
+    if (catFetchError || !category) {
+      return res.status(404).json({ error: "Category record not found." });
+    }
+
+    // B. DEFENSIVE GUARD: Query if any teams are currently registered under this category string
+    const { count: teamCount, error: teamCheckError } = await supabase
+      .from('teams')
+      .select('*', { count: 'exact', head: true })
+      .eq('category_id', id);
+
+    if (teamCheckError) throw teamCheckError;
+
+    if (teamCount && teamCount > 0) {
+      return res.status(400).json({ 
+        error: `Deletion Blocked: This division has ${teamCount} registered team(s). You must manually migrate or remove all participants before scrubbing this category context.` 
+      });
+    }
+
+    // C. Clear execution path verified -> Proceed to drop row entity safely
+    const { error: deleteError } = await supabase
+      .from('categories')
+      .delete()
+      .eq('category_id', id);
+
+    if (deleteError) throw deleteError;
+
+    // Broadcast update globally to clear DOM layouts without manual page reloads
+    io.to(`tournament:${category.tournament_id}`).emit('registration-updated');
+    return res.json({ success: true, message: "Division context successfully purged." });
+  } catch (err: any) {
+    console.error("Category destruction execution crash:", err);
+    return res.status(500).json({ error: "Internal processing crash executing deletion macro." });
+  }
+});
+
 /** =======================================================
  * TOURNAMENT OPERATIONS & ENRICHED SCOPED MATCH ROUTES
  * ======================================================= */
