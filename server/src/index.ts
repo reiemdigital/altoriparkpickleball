@@ -304,13 +304,13 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
     }
 
     const { data: categories, error: categoriesError } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('tournament_id', tournamentId);
+  .from('tournament_categories_matrix') // 🔥 SWAPPED: Now targets our dynamic, self-calculating view
+  .select('*')
+  .eq('tournament_id', tournamentId);
 
-    if (categoriesError) {
-      return res.status(400).json({ error: categoriesError.message });
-    }
+if (categoriesError) {
+  return res.status(400).json({ error: categoriesError.message });
+}
 
     const { count: liveMatchesCount, error: matchesCountError } = await supabase
       .from('matches')
