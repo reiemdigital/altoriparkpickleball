@@ -62,13 +62,19 @@ export const RegistrationPortal = () => {
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editTeamName, setEditTeamName] = useState<string>('');
 
-  const isSingles = category === "Open Singles" || category === "Juniors(17yrs old and below)";
-
-  // Safely extracts active category id based on selection context
-  const currentCategoryId = useMemo(() => {
-    const matchedCat = categories.find((c: TournamentCategory) => c.category_name === category);
-    return matchedCat?.category_id || '';
+  // 🛠️ DYNAMIC LOOKUP LAYER: Find the complete configuration metadata for the selected category
+  const currentCategoryObj = useMemo(() => {
+    return categories.find((c: TournamentCategory) => c.category_name === category);
   }, [categories, category]);
+
+  const currentCategoryId = useMemo(() => {
+    return currentCategoryObj?.category_id || '';
+  }, [currentCategoryObj]);
+
+  // 🔥 DETECT FORMAT MATRICES: Reads directly from the server-verified configuration token flag
+  const isSingles = useMemo(() => {
+    return currentCategoryObj?.category_type === 'Singles';
+  }, [currentCategoryObj]);
 
   // Unifies state sync updates across store vectors cleanly without page reloads
   const refreshData = useCallback(async () => {
@@ -94,23 +100,21 @@ export const RegistrationPortal = () => {
     }
   }, [tournamentId, refreshData]);
 
-  // Auto-align default form drop selection values cleanly with data vectors
+  // Handle fallback alignment for drop selection values without triggering synchronous cascading renders
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      const isCurrentlySelectedValid = categories.some(c => c.category_name === category);
+      if (!isCurrentlySelectedValid) {
+        // Schedule the state alteration to the next event loop macro-task tick
+        const queueCategoryTask = setTimeout(() => {
+          setCategory(categories[0].category_name);
+        }, 0);
 
-// Handle fallback alignment for drop selection values without triggering synchronous cascading renders
-useEffect(() => {
-  if (categories && categories.length > 0) {
-    const isCurrentlySelectedValid = categories.some(c => c.category_name === category);
-    if (!isCurrentlySelectedValid) {
-      // Schedule the state alteration to the next event loop macro-task tick
-      const queueCategoryTask = setTimeout(() => {
-        setCategory(categories[0].category_name);
-      }, 0);
-
-      // Wipe the scheduling timer immediately if dependencies shift or component unmounts
-      return () => clearTimeout(queueCategoryTask);
+        // Wipe the scheduling timer immediately if dependencies shift or component unmounts
+        return () => clearTimeout(queueCategoryTask);
+      }
     }
-  }
-}, [categories, category]);
+  }, [categories, category]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +152,6 @@ useEffect(() => {
     if (!tournamentId || !targetCat) return;
 
     try {
-      // SENIOR DEV FIX: Shift endpoint base path to completely bypass the wildcard router
       await axios.put(`${SOCKET_URL}/api/config/category-settings`, {
         tournamentId,
         categoryId: targetCat.category_id,
@@ -364,7 +367,8 @@ useEffect(() => {
               const activeGroupCount = 4; 
               const isFull = divisionTeams.length >= maxLimit;
 
-              const isCatSingles = cat === "Open Singles" || cat === "Juniors(17yrs old and below)";
+              // 🔥 READS DIRECTLY FROM PROPERTY PARAMETERS: Checks database mapping flag for individual rows
+              const isCatSingles = catObj.category_type === 'Singles';
               const isAllocated = divisionTeams.some(t => t.group_id && t.group_id !== 'Pending Pool Seeding');
               
               const isSeeded = matches.some(

@@ -22,6 +22,7 @@ export interface TournamentEvent {
 }
 
 export interface TournamentCategory {
+  category_type: string;
   category_id: string;
   tournament_id: string;
   category_name: string;

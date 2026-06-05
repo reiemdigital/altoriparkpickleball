@@ -18,7 +18,7 @@ export function TournamentGateway() {
   const { gatewayData, setGatewayData } = useTournamentStore();
   const [loading, setLoading] = useState(true);
   
-  // 🛠️ ADMIN & MODAL MATRIX STATE HANDLERS
+  // 🛠 *ADMIN & MODAL MATRIX STATE HANDLERS
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -26,6 +26,7 @@ export function TournamentGateway() {
   // 📝 NEW DIVISION FORM HOOK VARIABLES
   const [newCatName, setNewCatName] = useState('');
   const [newGenderDiv, setNewGenderDiv] = useState<'Mixed' | 'Male' | 'Female'>('Mixed');
+  const [newCategoryType, setNewCategoryType] = useState<'Singles' | 'Doubles'>('Doubles'); // 🏓 NEW FORMAT TYPE STATE HOOK
   const [newEntryFee, setNewEntryFee] = useState('0');
   const [newMaxSlots, setNewMaxSlots] = useState('16');
   const [newPrize1st, setNewPrize1st] = useState('0');
@@ -37,7 +38,6 @@ export function TournamentGateway() {
   const fetchGatewayInfo = React.useCallback(async () => {
     if (!tournamentId) return;
     try {
-      // Pass credentials to ensure the backend reads HTTP HttpOnly session cookies cleanly
       const res = await axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/gateway`, { withCredentials: true });
       setGatewayData(res.data);
     } catch (err) {
@@ -84,7 +84,6 @@ export function TournamentGateway() {
         maxSlots: parsedSlots
       }, { withCredentials: true });
       
-      // Force instant background hydration pass
       await fetchGatewayInfo();
     } catch (err) {
       console.error("Failed to persist modified slot thresholds:", err);
@@ -103,6 +102,7 @@ export function TournamentGateway() {
       await axios.post(`${SOCKET_URL}/api/tournaments/${tournamentId}/categories`, {
         category_name: newCatName,
         gender_division: newGenderDiv,
+        category_type: newCategoryType, // 🔥 Dispatch format selection to database row contract
         entry_fee: newEntryFee,
         max_slots: newMaxSlots,
         prize_first: newPrize1st,
@@ -113,6 +113,7 @@ export function TournamentGateway() {
       // Reset fields and close modal frame
       setNewCatName('');
       setNewGenderDiv('Mixed');
+      setNewCategoryType('Doubles');
       setNewEntryFee('0');
       setNewMaxSlots('16');
       setNewPrize1st('0');
@@ -137,16 +138,11 @@ export function TournamentGateway() {
       await axios.delete(`${SOCKET_URL}/api/categories/${categoryId}`, { withCredentials: true });
       await fetchGatewayInfo();
     } catch (err) {
-      // 🛡️ TYPE-SAFE ARCHITECTURE FIX: Eliminated explicit 'any' using an Axios Type Guard
       let serverErrorMessage = "Failed to drop division node entry.";
-      
       if (axios.isAxiosError(err)) {
         serverErrorMessage = err.response?.data?.error || serverErrorMessage;
-      } else {
-        console.error("Non-Axios core system error handled:", err);
       }
-      
-      alert(serverErrorMessage); // Gracefully handles the system block response if teams exist
+      alert(serverErrorMessage);
     }
   };
 
@@ -281,8 +277,10 @@ export function TournamentGateway() {
                   <div className="flex justify-between items-start gap-4">
                     <div className="space-y-1">
                       <h4 className="text-sm font-black text-slate-200 uppercase tracking-wide">{cat.category_name}</h4>
-                      <div className="flex gap-2 items-center">
+                      <div className="flex flex-wrap gap-2 items-center">
                         <span className="px-2 py-0.5 bg-slate-800 text-slate-400 font-mono text-[9px] rounded uppercase">Division: {cat.gender_division || 'Mixed'}</span>
+                        {/* 🏓 NEW FORMAT ACCENT DISPLAY TAG */}
+                        <span className="px-2 py-0.5 bg-purple-950/40 border border-purple-900/30 text-purple-400 font-mono text-[9px] rounded uppercase">Type: {cat.category_type || 'Doubles'}</span>
                         <span className="text-[11px] font-mono text-slate-500">Entry: <span className="text-slate-300 font-bold">₱{cat.entry_fee || '0.00'}</span></span>
                       </div>
                     </div>
@@ -306,7 +304,7 @@ export function TournamentGateway() {
                             ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400' 
                             : 'bg-[#088505]/10 border border-[#088505]/30 text-emerald-400'
                       }`}>
-                        {fillPercentage >= 100 ? '🔒 SOLD OUT' : `🔥 ${cat.available_slots_remaining} LEFT`}
+                        {fillPercentage >= 100 ? '🔒 FULL' : `🔥 ${cat.available_slots_remaining} LEFT`}
                       </span>
                     </div>
                   </div>
@@ -387,16 +385,30 @@ export function TournamentGateway() {
             </div>
 
             <form onSubmit={handleCreateCategory} className="space-y-3 font-sans text-xs">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Division Name ID *</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Advanced Men's Singles (4.0+)" 
-                  value={newCatName} 
-                  onChange={(e) => setNewCatName(e.target.value)} 
-                  required 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500" 
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Division Name ID *</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g., Advanced Men's Singles (4.0+)" 
+                    value={newCatName} 
+                    onChange={(e) => setNewCatName(e.target.value)} 
+                    required 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500" 
+                  />
+                </div>
+                {/* 🏓 NEW FORMAT SELECT FIELD DROPDOWN OVERLAY SECTION */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Format Match Type</label>
+                  <select 
+                    value={newCategoryType} 
+                    onChange={(e) => setNewCategoryType(e.target.value as 'Singles' | 'Doubles')} 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                  >
+                    <option value="Doubles">Doubles Match</option>
+                    <option value="Singles">Singles Match</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">

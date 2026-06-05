@@ -484,15 +484,13 @@ app.post('/api/tournaments/:id/seed-categories', requireAuth(['Admin']), async (
   }
 });
 
-// server/src/index.ts
-
-// 1. CREATE NEW TOURNAMENT CATEGORY DIVISION
+// server/src/index.ts (Inside Category Creation Route handler)
 app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   const { 
-    category_name, gender_division, entry_fee, max_slots, 
+    category_name, gender_division, category_type, entry_fee, max_slots, 
     prize_first, prize_second, prize_third 
-  } = req.body;
+  } = req.body; // 🏓 Captured category_type from frontend form submission
 
   if (!category_name) {
     return res.status(400).json({ error: "Validation failure: Division category name is required." });
@@ -506,6 +504,7 @@ app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), as
           tournament_id: tournamentId,
           category_name: category_name.trim(),
           gender_division: gender_division || 'Mixed',
+          category_type: category_type || 'Doubles', // 🔥 Inserted format token explicitly
           entry_fee: parseFloat(entry_fee) || 0.00,
           max_slots: parseInt(max_slots, 10) || 16,
           prize_first: parseFloat(prize_first) || 0.00,
@@ -518,7 +517,6 @@ app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), as
 
     if (error) throw error;
 
-    // Notify all active visitors to re-hydrate their dashboards instantly
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
     return res.status(201).json(newCategory);
   } catch (err: any) {
