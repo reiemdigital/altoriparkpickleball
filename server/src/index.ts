@@ -285,6 +285,33 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
   }
 });
 
+// SECURE PAYMENT VERIFICATION ACTION ENDPOINT
+app.put('/api/admin/teams/:id/verify-payment', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const { data: updatedTeam, error } = await supabase
+      .from('teams')
+      .update({ registration_status: 'CONFIRMED' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !updatedTeam) {
+      return res.status(400).json({ error: "Failed to confirm participant payment metadata." });
+    }
+
+    // 🔥 DYNAMIC TELEMETRY SYNC: Broadcasts updates to recalculate arrays live on every open dashboard
+    io.to(`tournament:${updatedTeam.tournament_id}`).emit('registration-updated');
+    io.to(`tournament:${updatedTeam.tournament_id}`).emit('standings-refresh');
+    
+    return res.json({ success: true, team: updatedTeam });
+  } catch (err) {
+    console.error("Verification processing crash:", err);
+    return res.status(500).json({ error: "Internal server error processing payment clearance vectors." });
+  }
+});
+
 app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
 
@@ -1074,14 +1101,27 @@ app.put('/api/config/category-settings', requireAuth(['Admin']), async (req: Req
 });
 
 app.post('/api/teams/register', async (req: Request, res: Response) => {
-  const { tournamentId, categoryId, teamName, player1Name, player2Name, contactNo, address, email } = req.body;
+  // Destructure paymentProofUrl alongside your standard text payload properties
+  const { 
+    tournamentId, 
+    categoryId, 
+    teamName, 
+    player1Name, 
+    player2Name, 
+    contactNo, 
+    address, 
+    email,
+    paymentProofUrl // 📸 URL path text token string passed back from frontend direct upload
+  } = req.body;
 
   try {
+    // 1. SYSTEM UUID REGEX PATH SECURITY VERIFICATION
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!tournamentId || !uuidRegex.test(tournamentId) || !categoryId || !uuidRegex.test(categoryId)) {
       return res.status(400).json({ error: "Operational Block: Ensure you are accessing a valid tournament URL parameter path." });
     }
 
+    // 2. VALIDATE TARGET DIVISION EXISTENCE IN SYSTEM REGISTRIES
     const { data: tier, error: tierError } = await supabase
       .from('categories')
       .select('*')
@@ -1093,18 +1133,27 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
       return res.status(404).json({ error: "The selected division category does not exist for this tournament track." });
     }
 
-    const { count: currentCount, error: countError } = await supabase
+    // 3. SECURE CAPACITY CHECK: Query only 'CONFIRMED' teams
+    // This ensures pending registrations with unverified payments do not block open pool capacity slots
+    const { count: currentConfirmedCount, error: countError } = await supabase
       .from('teams')
       .select('*', { count: 'exact', head: true })
-      .eq('category_id', categoryId);
+      .eq('category_id', categoryId)
+      .eq('registration_status', 'CONFIRMED'); // 🌟 Crucial filter adjustment
 
     if (countError) throw countError;
 
     const maxLimit = tier.max_slots ?? 16;
-    if (currentCount && currentCount >= maxLimit) {
+    if (currentConfirmedCount && currentConfirmedCount >= maxLimit) {
       return res.status(400).json({ error: `Registration blocked. Category limit of ${maxLimit} entries reached.` });
     }
 
+    // 4. DYNAMIC ENVIRONMENT STATUS LAYER INDUCTION
+    // If a payment token string is attached, it's public -> defaults to PENDING. 
+    // If absent, it represents a manual override from the admin onboarding dashboard -> defaults to CONFIRMED.
+    const calculatedStatus = paymentProofUrl ? 'PENDING' : 'CONFIRMED';
+
+    // 5. COMMITTING MULTIPART DATA PAYLOAD MAPS TO DATABASE LAYER
     const { data: newTeam, error: insertError } = await supabase
       .from('teams')
       .insert({
@@ -1116,18 +1165,22 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
         contact_no: contactNo || null,
         address: address || null,
         email: email || null,
-        registration_status: 'CONFIRMED'
+        payment_proof_url: paymentProofUrl || null, // Persists public access file path string link
+        registration_status: calculatedStatus        // Bound directly to the calculated track
       })
       .select()
       .single();
 
     if (insertError) throw insertError;
 
+    // 6. LIVE REAL-TIME TELEMETRY RE-HYDRATION ENGINE EMITS
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
     io.to(`tournament:${tournamentId}`).emit('standings-refresh');
+    
     return res.json(newTeam);
 
-  } catch {
+  } catch (err) {
+    console.error("Registration processing exception crash:", err);
     return res.status(500).json({ error: "Failed saving team entry into database system." });
   }
 });

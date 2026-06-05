@@ -1,13 +1,32 @@
 // client/src/pages/TournamentGateway.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { SOCKET_URL, socket } from '../socket';
+import { supabaseStorage } from '../config/supabaseClient';
 import { 
   Calendar, MapPin, Layers, ArrowRight, ExternalLink, 
-  Settings, Check, Loader2, Plus, Trash2, X 
+  Settings, Check, Loader2, Plus, Trash2, X, Upload, FileImage 
 } from 'lucide-react';
+
+/** =======================================================
+ * STRICT STRUCTURAL DATA CONTRACT TYPE DEFINITIONS
+ * ======================================================= */
+interface Category {
+  category_id: string;
+  tournament_id: string;
+  category_name: string;
+  gender_division?: string | null; // 🛡️ Widened to string/null to comfortably absorb raw database rows
+  category_type: string;           // 🏓 Aligned with string to perfectly match useTournamentStore contract
+  entry_fee: string | number;
+  max_slots: number;
+  prize_first: string | number;
+  prize_second: string | number;
+  prize_third: string | number;
+  registered_teams_count?: number;
+  available_slots_remaining?: number;
+}
 
 /** =======================================================
  * PREMIUM BRANDED TOURNAMENT GATEWAY PAGE (/tournament/:id)
@@ -18,21 +37,32 @@ export function TournamentGateway() {
   const { gatewayData, setGatewayData } = useTournamentStore();
   const [loading, setLoading] = useState(true);
   
-  // 🛠 *ADMIN & MODAL MATRIX STATE HANDLERS
+  // 🛠️ ADMIN & MODAL MATRIX STATE HANDLERS
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // 📝 NEW DIVISION FORM HOOK VARIABLES
+  // 📝 ADMINISTRATIVE NEW DIVISION FORM HOOK VARIABLES
   const [newCatName, setNewCatName] = useState('');
   const [newGenderDiv, setNewGenderDiv] = useState<'Mixed' | 'Male' | 'Female'>('Mixed');
-  const [newCategoryType, setNewCategoryType] = useState<'Singles' | 'Doubles'>('Doubles'); // 🏓 NEW FORMAT TYPE STATE HOOK
+  const [newCategoryType, setNewCategoryType] = useState<'Singles' | 'Doubles'>('Doubles');
   const [newEntryFee, setNewEntryFee] = useState('0');
   const [newMaxSlots, setNewMaxSlots] = useState('16');
   const [newPrize1st, setNewPrize1st] = useState('0');
   const [newPrize2nd, setNewPrize2nd] = useState('0');
   const [newPrize3rd, setNewPrize3rd] = useState('0');
   const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // 📥 PUBLIC REGISTER SYSTEM HOOK VARIABLES
+  const [pubCategory, setPubCategory] = useState('');
+  const [pubTeamName, setPubTeamName] = useState('');
+  const [pubPlayer1Name, setPubPlayer1Name] = useState('');
+  const [pubPlayer2Name, setPubPlayer2Name] = useState('');
+  const [pubContactNo, setPubContactNo] = useState('');
+  const [pubAddress, setPubAddress] = useState('');
+  const [pubEmail, setPubEmail] = useState('');
+  const [pubFile, setPubFile] = useState<File | null>(null);
+  const [pubFormSubmitting, setPubFormSubmitting] = useState(false);
 
   // Unified data re-fetch action to clear race conditions
   const fetchGatewayInfo = React.useCallback(async () => {
@@ -71,6 +101,31 @@ export function TournamentGateway() {
     };
   }, [tournamentId, fetchGatewayInfo]);
 
+  // 🔥 Type casting data layers directly to eliminate structural friction
+  const tournament = gatewayData.tournament;
+  const stats = gatewayData.stats;
+  const isAdmin = gatewayData.isAdmin;
+  const categories = (gatewayData.categories || []) as Category[];
+
+  // Avoid calling setState synchronously within an effect by using macro-task scheduling
+  useEffect(() => {
+    if (categories && categories.length > 0 && !pubCategory) {
+      const deferTask = setTimeout(() => {
+        setPubCategory(categories[0].category_name);
+      }, 0);
+      return () => clearTimeout(deferTask);
+    }
+  }, [categories, pubCategory]);
+
+  // TYPE-SAFE DYNAMIC FORMAT DETECTOR
+  const selectedPubCatObj = useMemo(() => {
+    return categories.find((c: Category) => c.category_name === pubCategory);
+  }, [categories, pubCategory]);
+
+  const isPubSingles = useMemo(() => {
+    return selectedPubCatObj?.category_type === 'Singles';
+  }, [selectedPubCatObj]);
+
   // Async slot alteration handler
   const handleUpdateMaxSlots = async (categoryId: string, newSlotsValue: string) => {
     const parsedSlots = parseInt(newSlotsValue, 10);
@@ -92,7 +147,7 @@ export function TournamentGateway() {
     }
   };
 
-  // Submit request handler for creating new categories
+  // Submit request handler for creating new categories (Admin)
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -102,7 +157,7 @@ export function TournamentGateway() {
       await axios.post(`${SOCKET_URL}/api/tournaments/${tournamentId}/categories`, {
         category_name: newCatName,
         gender_division: newGenderDiv,
-        category_type: newCategoryType, // 🔥 Dispatch format selection to database row contract
+        category_type: newCategoryType, 
         entry_fee: newEntryFee,
         max_slots: newMaxSlots,
         prize_first: newPrize1st,
@@ -110,7 +165,6 @@ export function TournamentGateway() {
         prize_third: newPrize3rd
       }, { withCredentials: true });
 
-      // Reset fields and close modal frame
       setNewCatName('');
       setNewGenderDiv('Mixed');
       setNewCategoryType('Doubles');
@@ -146,17 +200,83 @@ export function TournamentGateway() {
     }
   };
 
-  if (loading || !gatewayData.tournament) {
+  // 🚀 PUBLIC SELF-REGISTRATION WORKFLOW WITH DIRECT STORAGE UPLOADING
+  const handlePublicRegistrationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tournamentId || !selectedPubCatObj) {
+      alert("Validation Exception: Missing active tournament scope parameters.");
+      return;
+    }
+
+    if (!pubFile) {
+      alert("Operational Requirement: Please attach an image snippet or receipt file as proof of payment.");
+      return;
+    }
+
+    setPubFormSubmitting(true);
+    let publicReceiptUrl: string;
+
+    try {
+      const fileExtension = pubFile.name.split('.').pop() || 'png';
+      const cleanFileName = `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExtension}`;
+      const bucketDestinationPath = `receipts/${cleanFileName}`;
+
+      const { error: uploadError } = await supabaseStorage.storage
+        .from('payment-proofs')
+        .upload(bucketDestinationPath, pubFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: spatialUrlObject } = supabaseStorage.storage
+        .from('payment-proofs')
+        .getPublicUrl(bucketDestinationPath);
+
+      publicReceiptUrl = spatialUrlObject.publicUrl;
+
+      await axios.post(`${SOCKET_URL}/api/teams/register`, {
+        tournamentId,
+        categoryId: selectedPubCatObj.category_id,
+        category: pubCategory,
+        teamName: isPubSingles ? pubPlayer1Name : pubTeamName,
+        player1Name: pubPlayer1Name,
+        player2Name: isPubSingles ? '' : pubPlayer2Name,
+        contactNo: pubContactNo,
+        address: pubAddress,
+        email: pubEmail,
+        paymentProofUrl: publicReceiptUrl 
+      });
+
+      alert("Registration Saved! Your submission is processing and on hold pending admin payment verification review.");
+      
+      setPubTeamName('');
+      setPubPlayer1Name('');
+      setPubPlayer2Name('');
+      setPubContactNo('');
+      setPubAddress('');
+      setPubEmail('');
+      setPubFile(null);
+      
+      await fetchGatewayInfo();
+
+    } catch (error) {
+      console.error("Public onboarding pipeline error:", error);
+      let runtimeMessage = "Failed to dispatch self-registration record.";
+      if (axios.isAxiosError(error)) {
+        runtimeMessage = error.response?.data?.error || runtimeMessage;
+      }
+      alert(runtimeMessage);
+    } finally {
+      setPubFormSubmitting(false);
+    }
+  };
+
+  if (loading || !tournament) {
     return (
       <div className="min-h-100 flex items-center justify-center font-mono text-xs text-[#64317C]">
         <Loader2 className="h-4 w-4 animate-spin mr-2" /> ⌛ Handshaking dynamic arena matrix variables...
       </div>
     );
   }
-
-  // 🔥 EXTRACT THE SERVER VERIFIED ADMINISTRATIVE STATUS FROM GATEWAY DATA PAYLOAD
-  // @ts-expect-error (prevents local compilation breaks if your store payload contract initial state is strictly typed)
-  const { tournament, categories, stats, isAdmin } = gatewayData;
 
   return (
     <div className="animate-in fade-in duration-300 w-full flex flex-col min-h-screen bg-slate-950 text-slate-100">
@@ -171,12 +291,12 @@ export function TournamentGateway() {
               🏆 Official Tournament Hub
             </span>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight uppercase font-sans leading-none text-white">
-              {tournament.title}
+              {tournament?.title}
             </h1>
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono text-slate-400 pt-1">
-              <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-[#088505]" /> {tournament.start_date} to {tournament.end_date}</span>
-              <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-[#64317C]" /> {tournament.venue_name}</span>
-              <span className="flex items-center gap-1.5"><Layers className="h-4 w-4 text-purple-400" /> {tournament.court_count} Active Courts</span>
+              <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-[#088505]" /> {tournament?.start_date} to {tournament?.end_date}</span>
+              <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-[#64317C]" /> {tournament?.venue_name}</span>
+              <span className="flex items-center gap-1.5"><Layers className="h-4 w-4 text-purple-400" /> {tournament?.court_count} Active Courts</span>
             </div>
           </div>
 
@@ -208,7 +328,7 @@ export function TournamentGateway() {
         </div>
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl text-left">
           <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Clearance Status</div>
-          <div className="text-2xl font-black text-purple-400 mt-1 uppercase font-mono tracking-tight">{tournament.status}</div>
+          <div className="text-2xl font-black text-purple-400 mt-1 uppercase font-mono tracking-tight">{tournament?.status}</div>
           <p className="text-[11px] text-slate-400 mt-1">Current global operational server state.</p>
         </div>
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl text-left">
@@ -219,7 +339,7 @@ export function TournamentGateway() {
       </section>
 
       {/* CATEGORY MATRICES DATA MATRICES LEDGER */}
-      <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left">
+      <section className="max-w-6xl mx-auto px-4 pb-12 w-full text-left">
         <div className="border-b border-slate-800 pb-3 mb-6 flex justify-between items-end gap-4">
           <div>
             <h3 className="text-base font-black font-mono uppercase tracking-wider text-slate-200">Tournament Divisions Matrix</h3>
@@ -227,7 +347,7 @@ export function TournamentGateway() {
           </div>
           <div className="flex items-center gap-2">
             
-            {/* 🛡️ SECURITY LAYER: Admin tools for Create and Edit switches */}
+            {/* SECURITY LAYER: Admin tools for Create and Edit switches */}
             {isAdmin && (
               <>
                 <button
@@ -250,7 +370,7 @@ export function TournamentGateway() {
               </>
             )}
 
-            {tournament.guidelines_url && (
+            {tournament?.guidelines_url && (
               <a href={tournament.guidelines_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-[#088505] hover:underline flex items-center gap-1 pl-2">
                 Guidelines PDF <ExternalLink className="h-3 w-3" />
               </a>
@@ -259,7 +379,7 @@ export function TournamentGateway() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {categories.map((cat) => {
+          {categories.map((cat: Category) => {
             const maxSlots = cat.max_slots || 16;
             const filledSlots = cat.registered_teams_count || 0;
             const fillPercentage = Math.min(100, (filledSlots / maxSlots) * 100);
@@ -279,7 +399,6 @@ export function TournamentGateway() {
                       <h4 className="text-sm font-black text-slate-200 uppercase tracking-wide">{cat.category_name}</h4>
                       <div className="flex flex-wrap gap-2 items-center">
                         <span className="px-2 py-0.5 bg-slate-800 text-slate-400 font-mono text-[9px] rounded uppercase">Division: {cat.gender_division || 'Mixed'}</span>
-                        {/* 🏓 NEW FORMAT ACCENT DISPLAY TAG */}
                         <span className="px-2 py-0.5 bg-purple-950/40 border border-purple-900/30 text-purple-400 font-mono text-[9px] rounded uppercase">Type: {cat.category_type || 'Doubles'}</span>
                         <span className="text-[11px] font-mono text-slate-500">Entry: <span className="text-slate-300 font-bold">₱{cat.entry_fee || '0.00'}</span></span>
                       </div>
@@ -323,7 +442,7 @@ export function TournamentGateway() {
                   </div>
                 </div>
 
-                {/* 🛡️ INLINE CAPACITY CONFIGURATION PANEL */}
+                {/* INLINE CAPACITY CONFIGURATION PANEL */}
                 {isAdmin && isAdminMode && (
                   <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-150">
                     <span className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider">Set Capacity Threshold:</span>
@@ -367,6 +486,124 @@ export function TournamentGateway() {
         </div>
       </section>
 
+      {/* PUBLIC SPECTATOR DIRECT REGISTRATION PORTAL SHEET */}
+      {!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
+        <section className="max-w-3xl mx-auto px-4 pb-24 w-full text-left animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-2xl shadow-xl shadow-black/40 backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-6 border-b border-slate-800 pb-4">
+              <Plus className="h-5 w-5 text-[#088505]" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                Official Public Onboarding Registration Form
+              </h3>
+            </div>
+
+            <form onSubmit={handlePublicRegistrationSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Choose Target Category Tier</label>
+                <select 
+                  value={pubCategory} 
+                  onChange={(e) => setPubCategory(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-medium"
+                >
+                  {categories.map((c: Category) => (
+                    <option key={c.category_id} value={c.category_name}>
+                      {c.category_name} ({c.category_type || 'Doubles'}) — ₱{c.entry_fee || '0.00'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {!isPubSingles && (
+                <div className="flex flex-col gap-1.5 md:col-span-2 animate-in fade-in duration-150">
+                  <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Team Identity Banner Name</label>
+                  <input 
+                    type="text" value={pubTeamName} onChange={(e) => setPubTeamName(e.target.value)} required={!isPubSingles} placeholder="e.g., GenSan Smashers"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                  />
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">
+                  {isPubSingles ? "Player Full Name *" : "Player One Full Name *"}
+                </label>
+                <input 
+                  type="text" value={pubPlayer1Name} onChange={(e) => setPubPlayer1Name(e.target.value)} required placeholder="Primary participant full identity"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Player Two Full Name</label>
+                <input 
+                  type="text" value={pubPlayer2Name} onChange={(e) => setPubPlayer2Name(e.target.value)} 
+                  disabled={isPubSingles} placeholder={isPubSingles ? "Disabled for Singles" : "Partner full identity"}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-900/40"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Mobile Contact Number *</label>
+                <input 
+                  type="text" required value={pubContactNo} onChange={(e) => setPubContactNo(e.target.value)} placeholder="e.g., 09123456789"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-mono"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Active Email Address *</label>
+                <input 
+                  type="email" required value={pubEmail} onChange={(e) => setPubEmail(e.target.value)} placeholder="player@domain.com"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Residential Base Address *</label>
+                <input 
+                  type="text" required value={pubAddress} onChange={(e) => setPubAddress(e.target.value)} placeholder="Barangay, City, Province"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                />
+              </div>
+
+              {/* DIRECT CLOUD BINARY FILE UPLOADER STRIP */}
+              <div className="flex flex-col gap-1.5 md:col-span-2 border-t border-dashed border-slate-800 pt-4 mt-2">
+                <label className="text-[10px] font-mono font-bold uppercase text-purple-400 flex items-center gap-1">
+                  <FileImage className="h-3.5 w-3.5" /> Upload Proof of Entry Payment Fee *
+                </label>
+                <div className="relative border border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/40 rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-colors group">
+                  <input 
+                    type="file" 
+                    required 
+                    accept="image/*"
+                    onChange={(e) => setPubFile(e.target.files?.[0] || null)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <Upload className="h-5 w-5 text-slate-500 group-hover:text-purple-400 transition-colors" />
+                  <span className="text-[11px] font-mono text-slate-400 group-hover:text-slate-200 transition-colors truncate max-w-xs">
+                    {pubFile ? pubFile.name : "Choose File snippet or Receipt image..."}
+                  </span>
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={pubFormSubmitting}
+                className="md:col-span-2 mt-4 w-full bg-[#088505] text-white font-bold font-mono py-4 rounded-xl hover:bg-opacity-90 active:scale-[0.995] text-xs tracking-wider uppercase transition-all shadow-md shadow-[#088505]/10 cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {pubFormSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Streaming Binary Receipt to Cloud Bucket...
+                  </>
+                ) : (
+                  "Submit Registration and Receipt Verification Request ➔"
+                )}
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
+
       {/* 📋 ADD NEW DIVISION OVERLAY MODAL FORM */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
@@ -397,7 +634,6 @@ export function TournamentGateway() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500" 
                   />
                 </div>
-                {/* 🏓 NEW FORMAT SELECT FIELD DROPDOWN OVERLAY SECTION */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Format Match Type</label>
                   <select 

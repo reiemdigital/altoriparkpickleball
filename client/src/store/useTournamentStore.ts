@@ -80,6 +80,7 @@ export interface TeamStanding {
 }
 
 export interface GatewayData {
+  isAdmin: boolean; // 🛡️ FIX 1: Shifted from 'any' to strict type-safe boolean contract
   tournament: TournamentEvent | null;
   categories: TournamentCategory[];
   stats: {
@@ -119,7 +120,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   gatewayData: {
     tournament: null,
     categories: [],
-    stats: { liveMatchesCount: 0, registeredPlayersCount: 0 }
+    stats: { liveMatchesCount: 0, registeredPlayersCount: 0 },
+    isAdmin: false // 🛡️ FIX 2: Resolved missing property on state declaration loop initialization
   },
   matches: [],
   standings: [],
@@ -184,7 +186,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       tournaments: state.tournaments.filter((t) => t.id !== id),
       activeTournamentId: isCurrentActive ? null : state.activeTournamentId,
       gatewayData: isCurrentActive 
-        ? { tournament: null, categories: [], stats: { liveMatchesCount: 0, registeredPlayersCount: 0 } }
+        ? { tournament: null, categories: [], stats: { liveMatchesCount: 0, registeredPlayersCount: 0 }, isAdmin: false } // 🛡️ FIX 3: Aligned reset payload shape with GatewayData specifications
         : state.gatewayData
     }));
   },
@@ -192,7 +194,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   // NEW HOOK: Automatically fetches complete parent match context maps via fallback tracking routes
   fetchSingleMatchDetails: async (matchId) => {
     try {
-      // Leverages the core match list route to parse arrays natively without breaking your current backend endpoint index
       const response = await axios.get<Match[]>(`${API_URL}/api/tournaments/all/matches-lookup-fallback`);
       const targetedMatch = response.data.find(m => m.id === matchId);
       if (targetedMatch) {
@@ -201,7 +202,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       }
       return null;
     } catch {
-      // Fallback: If fallback endpoint routes aren't active, let the local WebSockets pipeline append data streams dynamically
       return null;
     }
   }
