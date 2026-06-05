@@ -1,5 +1,4 @@
 // client/src/App.tsx
-import React from 'react';
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
