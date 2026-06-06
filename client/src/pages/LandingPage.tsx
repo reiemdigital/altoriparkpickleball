@@ -3,14 +3,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowRight, Trophy, Users, CheckCircle2, ShieldCheck, 
-  Sparkles, Zap, Star, ChevronRight, MapPin
+  Sparkles, Zap, Star, ChevronRight, MapPin, Phone
 } from 'lucide-react';
 
 interface MarqueeLogo {
   id: string;
   name: string;
   src: string;
-  // Allows you to adjust specific heights to make different logo proportions look uniform
   heightClass: string; 
 }
 
@@ -32,21 +31,21 @@ const AMENITIES = [
   {
     id: "amenity-1",
     num: "01",
-    tag: "Surface Spec", // 🛠️ NOW EDITABLE INDIVIDUALLY
+    tag: "Surface Spec", 
     title: "Joint-Friendly Cushion Floors",
     description: "Our premium indoor and outdoor courts feature multi-layered cushioning designed to absorb impact and protect your knees. You get maximum comfort during long rallies without sacrificing a perfectly true, consistent ball bounce."
   },
   {
     id: "amenity-2",
     num: "02",
-    tag: "Indoor Comfort & Outdoor Play", // 🛠️ NOW EDITABLE INDIVIDUALLY
+    tag: "Indoor Comfort & Outdoor Play", 
     title: "Indoor Comfort & Outdoor Play",
     description: "Play your way, rain or shine. Escape the heat on our fully climate-controlled indoor courts featuring advanced airflow systems, or step outside to enjoy top-tier open-air play under the GenSan sky."
   },
   {
     id: "amenity-3",
     num: "03",
-    tag: "Match Tracking", // 🛠️ NOW EDITABLE INDIVIDUALLY
+    tag: "Match Tracking", 
     title: "Real-Time Live Scoreboards",
     description: "Keep your eyes on the competition. Our courts feature instant digital scoreboard updates, allowing players and spectators to watch local bracket standings and leaderboards shift the second a point is scored."
   }
@@ -289,7 +288,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* 3. VENUE AMENITIES SECTION (UPDATED DYNAMIC MATRIX MAPPING) */}
+      {/* 3. VENUE AMENITIES SECTION */}
       <section className="py-24 max-w-7xl mx-auto px-4 w-full border-b border-slate-200/60 dark:border-slate-900">
         <div className="text-center max-w-xl mx-auto mb-16 space-y-2">
           <span className="text-[10px] font-mono font-black text-[#64317C] dark:text-purple-400 px-3 py-1 bg-[#64317C]/5 dark:bg-[#64317C]/10 rounded-full uppercase tracking-widest">
@@ -307,7 +306,6 @@ export function LandingPage() {
               key={amenity.id} 
               className="p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl shadow-xs dark:bg-slate-900/20 dark:border-white/5 space-y-4 text-left hover:border-[#64317C]/40 dark:hover:border-[#64317C]/40 transition-all duration-300 group hover:-translate-y-0.5"
             >
-              {/* FIXED: Evaluates data schema strings smoothly to separate title, numbers, and technical spec flags natively */}
               <div className="text-xs font-black font-mono text-[#64317C] dark:text-purple-400 group-hover:text-[#088505] dark:group-hover:text-emerald-400 transition-colors">
                 {amenity.num} / {amenity.tag}
               </div>
@@ -474,7 +472,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* 7. DYNAMIC SOCIAL PROOF GRID LAYOUT */}
+      {/* 7. DYNAMIC SOCIAL PROOF GRID LAYOUT & HIGH-DENSITY RESPONSIVE FOOTER */}
       <section className="py-24 bg-slate-100 dark:bg-slate-900/20 w-full border-t border-slate-200/60 dark:border-slate-900">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
@@ -505,17 +503,103 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* Footer Footprint Block */}
-          <footer className="mt-20 pt-8 border-t border-slate-200 dark:border-slate-800/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] font-mono text-slate-400 uppercase tracking-widest">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="h-4 w-4 text-[#088505]" /> Altori Park Pickleball • All Rights Reserved • Power By Reiem Digitals
+          {/* =========================================================================
+           * 💻 & 📱 HIGH-DENSITY IMMERSIVE MULTI-COLUMN RESPONSIVE FOOTER COMPONENT
+           * ========================================================================= */}
+          <footer className="mt-24 pt-16 border-t border-slate-200 dark:border-slate-800/60 text-left">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 pb-12">
+              
+              {/* BLOCK 1: DEPLOYMENT STACK LOGO BRIEF BRANDING LAYOUT */}
+              <div className="lg:col-span-4 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-[#64317C] dark:text-purple-400" />
+                  <span className="font-mono font-black uppercase text-xs tracking-wider text-slate-900 dark:text-white">
+                    Altori Park Hub System
+                  </span>
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed max-w-sm">
+                  Next-generation modular bracket management system and tournament tracking network, streamlining public entry processing and live bracket telemetry updates.
+                </p>
+              </div>
+
+              {/* BLOCK 2: TOURNAMENT UTILITY DIRECTORY CHANNELS */}
+              <div className="lg:col-span-3 space-y-3">
+                <h4 className="font-mono font-black uppercase text-[10px] tracking-widest text-slate-400 dark:text-slate-500">
+                  Ecosystem Hub
+                </h4>
+                <ul className="flex flex-col gap-2.5 font-mono text-xs font-bold uppercase tracking-wide">
+                  <li>
+                    <Link to="/about" className="text-slate-500 hover:text-[#088505] dark:text-slate-400 dark:hover:text-emerald-400 inline-flex items-center gap-1 transition-colors">
+                      <ChevronRight className="h-3 w-3 opacity-50" /> About Arena
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/tournaments" className="text-slate-500 hover:text-[#088505] dark:text-slate-400 dark:hover:text-emerald-400 inline-flex items-center gap-1 transition-colors">
+                      <ChevronRight className="h-3 w-3 opacity-50" /> Tournaments List
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/schedule" className="text-slate-500 hover:text-[#088505] dark:text-slate-400 dark:hover:text-emerald-400 inline-flex items-center gap-1 transition-colors">
+                      <ChevronRight className="h-3 w-3 opacity-50" /> Court Schedules
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              {/* BLOCK 3: SUPPORT LEGAL DIRECTORY INDEX */}
+              <div className="lg:col-span-2 space-y-3">
+                <h4 className="font-mono font-black uppercase text-[10px] tracking-widest text-slate-400 dark:text-slate-500">
+                  Legal Base
+                </h4>
+                <ul className="flex flex-col gap-2.5 font-mono text-xs font-bold uppercase tracking-wide">
+                  <li>
+                    <Link to="/privacy" className="text-slate-500 hover:text-[#64317C] dark:text-slate-400 dark:hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                      <ChevronRight className="h-3 w-3 opacity-50" /> Privacy Policy
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/terms" className="text-slate-500 hover:text-[#64317C] dark:text-slate-400 dark:hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                      <ChevronRight className="h-3 w-3 opacity-50" /> Terms & Rules
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/cookies" className="text-slate-500 hover:text-[#64317C] dark:text-slate-400 dark:hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                      <ChevronRight className="h-3 w-3 opacity-50" /> Cookie Maps
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              {/* BLOCK 4: REGIONAL GEO-COORDINATION ADAPTER LAYER */}
+              <div className="lg:col-span-3 space-y-3 text-slate-500 dark:text-slate-400 text-xs">
+                <h4 className="font-mono font-black uppercase text-[10px] tracking-widest text-slate-400 dark:text-slate-500">
+                  Venue Location
+                </h4>
+                <ul className="space-y-2.5 font-sans font-medium">
+                  <li className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-slate-400 dark:text-slate-600 shrink-0 mt-0.5" />
+                    <span>Altori Park Pickleball, Matatag Park Square, Nunez Ext St, General Santos City, Philippines</span>
+                  </li>
+                  <li className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    <span>+63 (083) 552-ALTORI</span>
+                  </li>
+                </ul>
+              </div>
             </div>
-            <div className="flex gap-4">
-              <Link to="/privacy" className="hover:underline">Privacy</Link>
-              <Link to="/terms" className="hover:underline">Terms</Link>
-              <Link to="/cookies" className="hover:underline">Cookies</Link>
+
+            {/* CORE BASE LEVEL FOOTPRINT ATTRIBUTION ROWS */}
+            <div className="pt-8 border-t border-slate-200 dark:border-slate-800/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+              <div className="flex items-center gap-1.5 text-center sm:text-left">
+                <ShieldCheck className="h-4 w-4 text-[#088505]" /> 
+                <span>Altori Park Pickleball • All Rights Reserved • Powered by Reiem Digitals</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-400/50 dark:text-slate-600">
+                <span>© {new Date().getFullYear()} Altori Park</span>
+              </div>
             </div>
           </footer>
+
         </div>
       </section>
 
