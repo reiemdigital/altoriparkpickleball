@@ -490,33 +490,33 @@ export function TournamentGateway() {
       </section>
 
       {/* =========================================================================
-       * 🚀 CTA MODULE ANCHOR BOX
-       * ========================================================================= */}
-      {!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
-        <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left animate-in fade-in duration-300">
-          <div className="relative overflow-hidden bg-gradient-to-r from-purple-50 via-slate-50 to-white border border-slate-200 dark:from-slate-900 dark:to-purple-950/40 dark:border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xs dark:shadow-xl transition-all duration-200">
-            <div className="space-y-2 max-w-xl">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono text-[10px] font-black tracking-wider uppercase bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:border-purple-500/20 dark:text-purple-400">
-                ⚡ Secure Your Slot
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-900 dark:text-white tracking-tight">
-                Ready to take your game to the court?
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Registration is currently open for active divisions. Tap the button to fill out your player profile details, submit your entry slip, and claim your seed allocation.
-              </p>
-            </div>
-            
-            <button
-              onClick={() => setShowRegisterModal(true)}
-              className="w-full md:w-auto shrink-0 bg-[#088505] hover:bg-opacity-95 text-white font-black font-mono text-xs uppercase tracking-widest px-8 py-4 rounded-xl shadow-lg shadow-[#088505]/20 flex items-center justify-center gap-2 transition-all cursor-pointer group hover:-translate-y-0.5"
-            >
-              <UserPlus className="h-4 w-4 text-white group-hover:scale-110 transition-transform" /> 
-              Register For This Tournament
-            </button>
-          </div>
-        </section>
-      )}
+ * 🚀 CTA MODULE ANCHOR BOX
+ * ========================================================================= */}
+{!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
+  <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left animate-in fade-in duration-300">
+    <div className="relative overflow-hidden bg-gradient-to-r from-purple-50 via-slate-50 to-white border border-slate-200 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/50 dark:border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xs dark:shadow-xl transition-all duration-200">
+      <div className="space-y-2 max-w-xl">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono text-[10px] font-black tracking-wider uppercase bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:border-purple-500/20 dark:text-purple-400">
+          ⚡ Secure Your Slot
+        </span>
+        <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-900 dark:text-white tracking-tight">
+          Ready to take your game to the court?
+        </h3>
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          Registration is currently open for active divisions. Tap the button to fill out your player profile details, submit your entry slip, and claim your seed allocation.
+        </p>
+      </div>
+      
+      <button
+        onClick={() => setShowRegisterModal(true)}
+        className="w-full md:w-auto shrink-0 bg-[#088505] hover:bg-opacity-95 text-white font-black font-mono text-xs uppercase tracking-widest px-8 py-4 rounded-xl shadow-lg shadow-[#088505]/20 flex items-center justify-center gap-2 transition-all cursor-pointer group hover:-translate-y-0.5"
+      >
+        <UserPlus className="h-4 w-4 text-white group-hover:scale-110 transition-transform" /> 
+        Register For This Tournament
+      </button>
+    </div>
+  </section>
+)}
 
       {/* =========================================================================
        * 💻 & 📱 DUAL-THEME HIGH-DENSITY RESPONSIVE FOOTER COMPONENT
