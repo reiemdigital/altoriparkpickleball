@@ -530,7 +530,7 @@ export function TournamentGateway() {
               <div className="flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-[#64317C] dark:text-purple-400" />
                 <span className="font-mono font-black uppercase text-xs tracking-wider text-slate-900 dark:text-white">
-                  Altori Park Hub System
+                  Altori Park Pickleball
                 </span>
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed max-w-sm">
