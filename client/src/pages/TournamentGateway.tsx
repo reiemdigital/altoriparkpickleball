@@ -8,7 +8,7 @@ import { supabaseStorage } from '../config/supabaseClient';
 import { 
   Calendar, MapPin, Layers, ArrowRight, ExternalLink, 
   Settings, Check, Loader2, Plus, Trash2, X, Upload, FileImage,
-  Trophy, ChevronRight, Phone, ShieldCheck 
+  Trophy, ChevronRight, Phone, ShieldCheck, UserPlus 
 } from 'lucide-react';
 
 /** =======================================================
@@ -42,6 +42,7 @@ export function TournamentGateway() {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false); // 🌟 ADDED: Dynamic Public Entry Modal Switcher
 
   // 📝 ADMINISTRATIVE NEW DIVISION FORM HOOK VARIABLES
   const [newCatName, setNewCatName] = useState('');
@@ -257,6 +258,7 @@ export function TournamentGateway() {
       setPubEmail('');
       setPubFile(null);
       
+      setShowRegisterModal(false); // 🛡️ SENIOR UX BEST PRACTICE: Dismiss overlay cleanly upon successful ledger commit
       await fetchGatewayInfo();
 
     } catch (error) {
@@ -487,120 +489,31 @@ export function TournamentGateway() {
         </div>
       </section>
 
-      {/* PUBLIC SPECTATOR DIRECT REGISTRATION PORTAL SHEET */}
+      {/* =========================================================================
+       * 🚀 NEW DESIGN CTAs: HIGH-CONVERSION MODAL TRIGGER ANCHOR BOX
+       * ========================================================================= */}
       {!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
-        <section className="max-w-3xl mx-auto px-4 pb-24 w-full text-left animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-2xl shadow-xl shadow-black/40 backdrop-blur-md">
-            <div className="flex items-center gap-2 mb-6 border-b border-slate-800 pb-4">
-              <Plus className="h-5 w-5 text-[#088505]" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                OFFICIAL ENTRY REGISTRATION
+        <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left animate-in fade-in duration-300">
+          <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 to-purple-950/40 border border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl">
+            <div className="space-y-2 max-w-xl">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono text-[10px] font-black tracking-wider uppercase bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                ⚡ Secure Your Slot
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black uppercase text-white tracking-tight">
+                Ready to take your game to the court?
               </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Registration is currently open for active divisions. Tap the button to fill out your player profile details, submit your entry slip, and claim your seed allocation.
+              </p>
             </div>
-
-            <form onSubmit={handlePublicRegistrationSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
-              <div className="flex flex-col gap-1.5 md:col-span-2">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Select Your Division Bracket</label>
-                <select 
-                  value={pubCategory} 
-                  onChange={(e) => setPubCategory(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-medium cursor-pointer"
-                >
-                  {categories.map((c: Category) => (
-                    <option key={c.category_id} value={c.category_name}>
-                      {c.category_name} ({c.category_type || 'Doubles'}) — ₱{c.entry_fee || '0.00'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {!isPubSingles && (
-                <div className="flex flex-col gap-1.5 md:col-span-2 animate-in fade-in duration-150">
-                  <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Your Team Name</label>
-                  <input 
-                    type="text" value={pubTeamName} onChange={(e) => setPubTeamName(e.target.value)} required={!isPubSingles} placeholder="e.g., GenSan Smashers"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
-                  />
-                </div>
-              )}
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">
-                  {isPubSingles ? "Full Name (First and Last) *" : "Player One Full Name *"}
-                </label>
-                <input 
-                  type="text" value={pubPlayer1Name} onChange={(e) => setPubPlayer1Name(e.target.value)} required placeholder="Enter primary player's full name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Player Two Full Name</label>
-                <input 
-                  type="text" value={pubPlayer2Name} onChange={(e) => setPubPlayer2Name(e.target.value)} 
-                  disabled={isPubSingles} placeholder={isPubSingles ? "Disabled for Singles" : "Enter partner's full name"}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-900/40"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Contact Phone Number *</label>
-                <input 
-                  type="text" required value={pubContactNo} onChange={(e) => setPubContactNo(e.target.value)} placeholder="e.g., 09123456789"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-mono"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Email Address *</label>
-                <input 
-                  type="email" required value={pubEmail} onChange={(e) => setPubEmail(e.target.value)} placeholder="player@domain.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5 md:col-span-2">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Home Address *</label>
-                <input 
-                  type="text" required value={pubAddress} onChange={(e) => setPubAddress(e.target.value)} placeholder="Barangay, City, Province"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
-                />
-              </div>
-
-              {/* DIRECT CLOUD BINARY FILE UPLOADER STRIP */}
-              <div className="flex flex-col gap-1.5 md:col-span-2 border-t border-dashed border-slate-800 pt-4 mt-2">
-                <label className="text-[10px] font-mono font-bold uppercase text-purple-400 flex items-center gap-1">
-                  <FileImage className="h-3.5 w-3.5" /> Upload Your Payment Receipt or Screenshot *
-                </label>
-                <div className="relative border border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/40 rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-colors group">
-                  <input 
-                    type="file" 
-                    required 
-                    accept="image/*"
-                    onChange={(e) => setPubFile(e.target.files?.[0] || null)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  />
-                  <Upload className="h-5 w-5 text-slate-500 group-hover:text-purple-400 transition-colors" />
-                  <span className="text-[11px] font-mono text-slate-400 group-hover:text-slate-200 transition-colors truncate max-w-xs">
-                    {pubFile ? pubFile.name : "Click or drag your payment slip image file here..."}
-                  </span>
-                </div>
-              </div>
-
-              <button 
-                type="submit"
-                disabled={pubFormSubmitting}
-                className="md:col-span-2 mt-4 w-full bg-[#088505] text-white font-bold font-mono py-4 rounded-xl hover:bg-opacity-90 active:scale-[0.995] text-xs tracking-wider uppercase transition-all shadow-md shadow-[#088505]/10 cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
-              >
-                {pubFormSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Saving registration details...
-                  </>
-                ) : (
-                  "Register Team ➔"
-                )}
-              </button>
-            </form>
+            
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className="w-full md:w-auto shrink-0 bg-[#088505] hover:bg-opacity-95 text-white font-black font-mono text-xs uppercase tracking-widest px-8 py-4 rounded-xl shadow-lg shadow-[#088505]/10 flex items-center justify-center gap-2 transition-all cursor-pointer group hover:-translate-y-0.5"
+            >
+              <UserPlus className="h-4 w-4 text-white group-hover:scale-110 transition-transform" /> 
+              Register For This Tournament
+            </button>
           </div>
         </section>
       )}
@@ -703,6 +616,144 @@ export function TournamentGateway() {
           </div>
         </div>
       </footer>
+
+      {/* =========================================================================
+       * 📱 📥 NEW ELEMENT OVERLAY: INTERACTIVE REGISTRATION MODAL FORM SCREEN
+       * ========================================================================= */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 max-w-2xl w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-150 text-left shadow-2xl max-h-[90vh] overflow-y-auto relative scrollbar-thin scrollbar-thumb-slate-800">
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 sticky top-0 bg-slate-900 z-10 pt-1">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-[#088505]" />
+                <div>
+                  <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">Official Entry Registration Form</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Complete your team credentials and add a payment voucher copy below.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowRegisterModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePublicRegistrationSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans pt-2">
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Select Your Division Bracket</label>
+                <select 
+                  value={pubCategory} 
+                  onChange={(e) => setPubCategory(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-medium cursor-pointer"
+                >
+                  {categories.map((c: Category) => (
+                    <option key={c.category_id} value={c.category_name}>
+                      {c.category_name} ({c.category_type || 'Doubles'}) — ₱{c.entry_fee || '0.00'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {!isPubSingles && (
+                <div className="flex flex-col gap-1.5 md:col-span-2 animate-in fade-in duration-150">
+                  <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Your Team Name</label>
+                  <input 
+                    type="text" value={pubTeamName} onChange={(e) => setPubTeamName(e.target.value)} required={!isPubSingles} placeholder="e.g., GenSan Smashers"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                  />
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">
+                  {isPubSingles ? "Full Name (First and Last) *" : "Player One Full Name *"}
+                </label>
+                <input 
+                  type="text" value={pubPlayer1Name} onChange={(e) => setPubPlayer1Name(e.target.value)} required placeholder="Enter primary player's full name"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Player Two Full Name</label>
+                <input 
+                  type="text" value={pubPlayer2Name} onChange={(e) => setPubPlayer2Name(e.target.value)} 
+                  disabled={isPubSingles} placeholder={isPubSingles ? "Disabled for Singles" : "Enter partner's full name"}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-900/40"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Contact Phone Number *</label>
+                <input 
+                  type="text" required value={pubContactNo} onChange={(e) => setPubContactNo(e.target.value)} placeholder="e.g., 09123456789"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-mono"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Email Address *</label>
+                <input 
+                  type="email" required value={pubEmail} onChange={(e) => setPubEmail(e.target.value)} placeholder="player@domain.com"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Home Address *</label>
+                <input 
+                  type="text" required value={pubAddress} onChange={(e) => setPubAddress(e.target.value)} placeholder="Barangay, City, Province"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5 md:col-span-2 border-t border-dashed border-slate-800 pt-4 mt-2">
+                <label className="text-[10px] font-mono font-bold uppercase text-purple-400 flex items-center gap-1">
+                  <FileImage className="h-3.5 w-3.5" /> Upload Your Payment Receipt or Screenshot *
+                </label>
+                <div className="relative border border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/40 rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-colors group">
+                  <input 
+                    type="file" 
+                    required 
+                    accept="image/*"
+                    onChange={(e) => setPubFile(e.target.files?.[0] || null)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <Upload className="h-5 w-5 text-slate-500 group-hover:text-purple-400 transition-colors" />
+                  <span className="text-[11px] font-mono text-slate-400 group-hover:text-slate-200 transition-colors truncate max-w-xs">
+                    {pubFile ? pubFile.name : "Click or drag your payment slip image file here..."}
+                  </span>
+                </div>
+              </div>
+
+              <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-slate-800 font-mono text-xs font-bold mt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowRegisterModal(false)} 
+                  className="px-5 py-3 border border-slate-800 text-slate-400 rounded-xl hover:bg-slate-800 cursor-pointer uppercase tracking-wider text-[11px]"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={pubFormSubmitting}
+                  className="flex-1 md:flex-initial bg-[#088505] text-white font-bold px-6 py-3 rounded-xl hover:bg-opacity-90 active:scale-[0.995] tracking-wider uppercase transition-all shadow-md shadow-[#088505]/10 cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2 text-[11px]"
+                >
+                  {pubFormSubmitting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...
+                    </>
+                  ) : (
+                    "Register Team ➔"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 📋 ADD NEW DIVISION OVERLAY MODAL FORM */}
       {showAddModal && (
