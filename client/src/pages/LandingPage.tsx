@@ -38,8 +38,8 @@ const AMENITIES = [
   {
     id: "amenity-2",
     num: "02",
-    tag: "Indoor Comfort & Outdoor Play", 
-    title: "Indoor Comfort & Outdoor Play",
+    tag: "Venue Flexibility", 
+    title: "Indoor & Outdoor Comfort Play",
     description: "Play your way, rain or shine. Escape the heat on our fully climate-controlled indoor courts featuring advanced airflow systems, or step outside to enjoy top-tier open-air play under the GenSan sky."
   },
   {
@@ -54,11 +54,11 @@ const AMENITIES = [
 const PLAY_ECOSYSTEM = [
   {
     id: "eco-1",
-    title: "Open Play Mixer Pools",
+    title: "Open Play Matches",
     badge: "Community",
     desc: "Dynamic rotational play organized completely by dynamic skill-ratings. Show up solo or with a partner and jump straight into balanced court pairings.",
-    cta: "View Live Standings",
-    link: "/tournaments",
+    cta: "Explore Open Play",
+    link: "/open-play",
     isExternal: false
   },
   {
@@ -90,7 +90,7 @@ const MEMBERSHIP_TIERS = [
     features: [
       "Access to premium indoor court tracking",
       "Standard 3-day advanced booking window",
-      "Entry eligibility into community mixers",
+      "Entry eligibility into community open play",
       "Standard rating tracking ledger analytics"
     ],
     isPopular: false,
@@ -465,7 +465,7 @@ export function LandingPage() {
                 to="/tournaments" 
                 className="inline-flex bg-[#088505] hover:bg-opacity-95 text-white font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-md shadow-[#088505]/10 items-center gap-2 group cursor-pointer"
               >
-                Enter Official Tournament Gateway <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+                View Live & Upcoming Tournaments <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </div>
@@ -514,7 +514,7 @@ export function LandingPage() {
                 <div className="flex items-center gap-2">
                   <Trophy className="h-4 w-4 text-[#64317C] dark:text-purple-400" />
                   <span className="font-mono font-black uppercase text-xs tracking-wider text-slate-900 dark:text-white">
-                    Altori Park Hub System
+                    Altori Park Pickleball
                   </span>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed max-w-sm">
