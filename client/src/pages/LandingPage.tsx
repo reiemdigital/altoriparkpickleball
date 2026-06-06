@@ -582,7 +582,7 @@ export function LandingPage() {
                   </li>
                   <li className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
                     <Phone className="h-3.5 w-3.5 shrink-0" />
-                    <span>+63 (083) 552-ALTORI</span>
+                    <span>+63 929 3406 022</span>
                   </li>
                 </ul>
               </div>

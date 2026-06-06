@@ -342,7 +342,7 @@ export function TournamentGateway() {
       <section className="max-w-6xl mx-auto px-4 pb-12 w-full text-left">
         <div className="border-b border-slate-800 pb-3 mb-6 flex justify-between items-end gap-4">
           <div>
-            <h3 className="text-base font-black font-mono uppercase tracking-wider text-slate-200">Tournament Divisions Matrix</h3>
+            <h3 className="text-base font-black font-mono uppercase tracking-wider text-slate-200">Tournament Divisions Categories</h3>
             <p className="text-xs text-slate-500 mt-0.5">Review category specifications, remaining team limits, and tier payouts.</p>
           </div>
           <div className="flex items-center gap-2">
@@ -468,7 +468,7 @@ export function TournamentGateway() {
 
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/60 text-center text-[11px] font-mono">
                   <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-2">
-                    <div className="text-amber-400 font-bold">🥇 1st Place</div>
+                    <div className="text-amber-400 font-bold">🥇 Champion</div>
                     <div className="text-slate-200 font-black mt-0.5">₱{cat.prize_first || '0.00'}</div>
                   </div>
                   <div className="bg-slate-300/5 border border-slate-300/10 rounded-lg p-2">
@@ -493,7 +493,7 @@ export function TournamentGateway() {
             <div className="flex items-center gap-2 mb-6 border-b border-slate-800 pb-4">
               <Plus className="h-5 w-5 text-[#088505]" />
               <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                Official Public Onboarding Registration Form
+                REGISTRAION FORM
               </h3>
             </div>
 
@@ -593,10 +593,10 @@ export function TournamentGateway() {
               >
                 {pubFormSubmitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Streaming Binary Receipt to Cloud Bucket...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Processing your submission...
                   </>
                 ) : (
-                  "Submit Registration and Receipt Verification Request ➔"
+                  "Submit Registration ➔"
                 )}
               </button>
             </form>
