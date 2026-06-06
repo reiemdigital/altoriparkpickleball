@@ -176,7 +176,7 @@ function DashboardLayout() {
                   to="/admin"
                   className="py-4 text-purple-600 dark:text-purple-400 normal-case font-sans font-bold flex items-center gap-2 px-2 mt-1"
                 >
-                  <Lock className="h-4 w-4" /> Access Staff Portal Shell
+                  <Lock className="h-4 w-4" /> Access Staff Portal
                 </Link>
               </nav>
             </motion.div>
