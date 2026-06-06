@@ -1,13 +1,14 @@
 // client/src/pages/TournamentGateway.tsx
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { SOCKET_URL, socket } from '../socket';
 import { supabaseStorage } from '../config/supabaseClient';
 import { 
   Calendar, MapPin, Layers, ArrowRight, ExternalLink, 
-  Settings, Check, Loader2, Plus, Trash2, X, Upload, FileImage 
+  Settings, Check, Loader2, Plus, Trash2, X, Upload, FileImage,
+  Trophy, ChevronRight, Phone, ShieldCheck 
 } from 'lucide-react';
 
 /** =======================================================
@@ -177,7 +178,7 @@ export function TournamentGateway() {
       await fetchGatewayInfo();
     } catch (err) {
       console.error("Division insertion failure:", err);
-      alert("Failed to build division category settings context loop.");
+      alert("Failed to create the new division bracket settings.");
     } finally {
       setFormSubmitting(false);
     }
@@ -185,14 +186,14 @@ export function TournamentGateway() {
 
   // Clean execution call to delete target structural categories safely
   const handleDeleteCategory = async (categoryId: string, name: string) => {
-    const confirmation = window.confirm(`Are you absolutely sure you want to delete the "${name}" category?\nThis action cannot be undone.`);
+    const confirmation = window.confirm(`Are you absolutely sure you want to delete the "${name}" division?\nThis action cannot be undone.`);
     if (!confirmation) return;
 
     try {
       await axios.delete(`${SOCKET_URL}/api/categories/${categoryId}`, { withCredentials: true });
       await fetchGatewayInfo();
     } catch (err) {
-      let serverErrorMessage = "Failed to drop division node entry.";
+      let serverErrorMessage = "Failed to drop the division bracket.";
       if (axios.isAxiosError(err)) {
         serverErrorMessage = err.response?.data?.error || serverErrorMessage;
       }
@@ -204,12 +205,12 @@ export function TournamentGateway() {
   const handlePublicRegistrationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tournamentId || !selectedPubCatObj) {
-      alert("Validation Exception: Missing active tournament scope parameters.");
+      alert("Error: Missing tournament identification values.");
       return;
     }
 
     if (!pubFile) {
-      alert("Operational Requirement: Please attach an image snippet or receipt file as proof of payment.");
+      alert("Please upload a copy of your payment receipt to secure your spot.");
       return;
     }
 
@@ -246,7 +247,7 @@ export function TournamentGateway() {
         paymentProofUrl: publicReceiptUrl 
       });
 
-      alert("Registration Saved! Your submission is processing and on hold pending admin payment verification review.");
+      alert("Registration submitted! Your spot is held provisionally until our team reviews your payment receipt.");
       
       setPubTeamName('');
       setPubPlayer1Name('');
@@ -260,7 +261,7 @@ export function TournamentGateway() {
 
     } catch (error) {
       console.error("Public onboarding pipeline error:", error);
-      let runtimeMessage = "Failed to dispatch self-registration record.";
+      let runtimeMessage = "Failed to submit your registration record.";
       if (axios.isAxiosError(error)) {
         runtimeMessage = error.response?.data?.error || runtimeMessage;
       }
@@ -273,7 +274,7 @@ export function TournamentGateway() {
   if (loading || !tournament) {
     return (
       <div className="min-h-100 flex items-center justify-center font-mono text-xs text-[#64317C]">
-        <Loader2 className="h-4 w-4 animate-spin mr-2" /> ⌛ Handshaking dynamic arena matrix variables...
+        <Loader2 className="h-4 w-4 animate-spin mr-2" /> ⌛ Getting court rosters and bracket details...
       </div>
     );
   }
@@ -288,7 +289,7 @@ export function TournamentGateway() {
         <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center text-left relative z-10">
           <div className="lg:col-span-8 space-y-4">
             <span className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[10px] font-mono font-black text-purple-400 uppercase tracking-widest">
-              🏆 Official Tournament Hub
+              🏆 Tournament Central
             </span>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight uppercase font-sans leading-none text-white">
               {tournament?.title}
@@ -314,27 +315,27 @@ export function TournamentGateway() {
       {/* VALUE PROPERTY GRID */}
       <section className="max-w-6xl mx-auto px-4 py-12 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl text-left">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Live Metrics</div>
+          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Live Matches</div>
           <div className="text-2xl font-black text-white mt-1 flex items-center gap-2">
             {stats.liveMatchesCount} Running
             {stats.liveMatchesCount > 0 && <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Active live updates executing across courts.</p>
+          <p className="text-[11px] text-slate-400 mt-1">Matches currently unfolding out on the courts right now.</p>
         </div>
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl text-left">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Roster Pool</div>
+          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Players & Teams</div>
           <div className="text-2xl font-black text-white mt-1">{stats.registeredPlayersCount} Entrants</div>
-          <p className="text-[11px] text-slate-400 mt-1">Roster names synchronized with databases.</p>
+          <p className="text-[11px] text-slate-400 mt-1">Teams officially registered and ready to play.</p>
         </div>
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl text-left">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Clearance Status</div>
+          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Tournament Status</div>
           <div className="text-2xl font-black text-purple-400 mt-1 uppercase font-mono tracking-tight">{tournament?.status}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Current global operational server state.</p>
+          <p className="text-[11px] text-slate-400 mt-1">The current stage of this tournament timeline.</p>
         </div>
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl text-left">
-          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Brackets Engine</div>
+          <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Tournament Style</div>
           <div className="text-2xl font-black text-emerald-400 mt-1 flex items-center gap-1">Dual-Stage</div>
-          <p className="text-[11px] text-slate-400 mt-1">Round Robin tracks advancing to playoffs trees.</p>
+          <p className="text-[11px] text-slate-400 mt-1">Pool play matchups leading into single-elimination brackets.</p>
         </div>
       </section>
 
@@ -342,8 +343,8 @@ export function TournamentGateway() {
       <section className="max-w-6xl mx-auto px-4 pb-12 w-full text-left">
         <div className="border-b border-slate-800 pb-3 mb-6 flex justify-between items-end gap-4">
           <div>
-            <h3 className="text-base font-black font-mono uppercase tracking-wider text-slate-200">Tournament Divisions Categories</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Review category specifications, remaining team limits, and tier payouts.</p>
+            <h3 className="text-base font-black font-mono uppercase tracking-wider text-slate-200">Tournament Divisions & Brackets</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Check out the active brackets, open entry slots, and cash prize breakdowns.</p>
           </div>
           <div className="flex items-center gap-2">
             
@@ -372,7 +373,7 @@ export function TournamentGateway() {
 
             {tournament?.guidelines_url && (
               <a href={tournament.guidelines_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-[#088505] hover:underline flex items-center gap-1 pl-2">
-                Guidelines PDF <ExternalLink className="h-3 w-3" />
+                Guidelines Rules PDF <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
@@ -400,7 +401,7 @@ export function TournamentGateway() {
                       <div className="flex flex-wrap gap-2 items-center">
                         <span className="px-2 py-0.5 bg-slate-800 text-slate-400 font-mono text-[9px] rounded uppercase">Division: {cat.gender_division || 'Mixed'}</span>
                         <span className="px-2 py-0.5 bg-purple-950/40 border border-purple-900/30 text-purple-400 font-mono text-[9px] rounded uppercase">Type: {cat.category_type || 'Doubles'}</span>
-                        <span className="text-[11px] font-mono text-slate-500">Entry: <span className="text-slate-300 font-bold">₱{cat.entry_fee || '0.00'}</span></span>
+                        <span className="text-[11px] font-mono text-slate-500">Entry Fee: <span className="text-slate-300 font-bold">₱{cat.entry_fee || '0.00'}</span></span>
                       </div>
                     </div>
 
@@ -410,7 +411,7 @@ export function TournamentGateway() {
                         <button
                           onClick={() => handleDeleteCategory(cat.category_id, cat.category_name)}
                           className="p-1 text-slate-500 hover:text-red-400 rounded-md hover:bg-red-500/10 transition-all cursor-pointer"
-                          title="Scrub Division Context"
+                          title="Delete Division Bracket"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -436,7 +437,7 @@ export function TournamentGateway() {
                       />
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-                      <span>Roster Saturation</span>
+                      <span>Registration Fill Rate</span>
                       <span>{filledSlots} / {maxSlots} Teams</span>
                     </div>
                   </div>
@@ -445,7 +446,7 @@ export function TournamentGateway() {
                 {/* INLINE CAPACITY CONFIGURATION PANEL */}
                 {isAdmin && isAdminMode && (
                   <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-150">
-                    <span className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider">Set Capacity Threshold:</span>
+                    <span className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider">Set Team Limit:</span>
                     <div className="flex items-center gap-1.5 relative">
                       <input 
                         type="number"
@@ -493,17 +494,17 @@ export function TournamentGateway() {
             <div className="flex items-center gap-2 mb-6 border-b border-slate-800 pb-4">
               <Plus className="h-5 w-5 text-[#088505]" />
               <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                REGISTRAION FORM
+                OFFICIAL ENTRY REGISTRATION
               </h3>
             </div>
 
             <form onSubmit={handlePublicRegistrationSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
               <div className="flex flex-col gap-1.5 md:col-span-2">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Choose Target Category Tier</label>
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Select Your Division Bracket</label>
                 <select 
                   value={pubCategory} 
                   onChange={(e) => setPubCategory(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-medium"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-medium cursor-pointer"
                 >
                   {categories.map((c: Category) => (
                     <option key={c.category_id} value={c.category_name}>
@@ -515,7 +516,7 @@ export function TournamentGateway() {
 
               {!isPubSingles && (
                 <div className="flex flex-col gap-1.5 md:col-span-2 animate-in fade-in duration-150">
-                  <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Team Identity Banner Name</label>
+                  <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Your Team Name</label>
                   <input 
                     type="text" value={pubTeamName} onChange={(e) => setPubTeamName(e.target.value)} required={!isPubSingles} placeholder="e.g., GenSan Smashers"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
@@ -525,10 +526,10 @@ export function TournamentGateway() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-mono font-bold uppercase text-slate-400">
-                  {isPubSingles ? "Player Full Name *" : "Player One Full Name *"}
+                  {isPubSingles ? "Full Name (First and Last) *" : "Player One Full Name *"}
                 </label>
                 <input 
-                  type="text" value={pubPlayer1Name} onChange={(e) => setPubPlayer1Name(e.target.value)} required placeholder="Primary participant full identity"
+                  type="text" value={pubPlayer1Name} onChange={(e) => setPubPlayer1Name(e.target.value)} required placeholder="Enter primary player's full name"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
                 />
               </div>
@@ -537,13 +538,13 @@ export function TournamentGateway() {
                 <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Player Two Full Name</label>
                 <input 
                   type="text" value={pubPlayer2Name} onChange={(e) => setPubPlayer2Name(e.target.value)} 
-                  disabled={isPubSingles} placeholder={isPubSingles ? "Disabled for Singles" : "Partner full identity"}
+                  disabled={isPubSingles} placeholder={isPubSingles ? "Disabled for Singles" : "Enter partner's full name"}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-900/40"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Mobile Contact Number *</label>
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Contact Phone Number *</label>
                 <input 
                   type="text" required value={pubContactNo} onChange={(e) => setPubContactNo(e.target.value)} placeholder="e.g., 09123456789"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500 font-mono"
@@ -551,7 +552,7 @@ export function TournamentGateway() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Active Email Address *</label>
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Email Address *</label>
                 <input 
                   type="email" required value={pubEmail} onChange={(e) => setPubEmail(e.target.value)} placeholder="player@domain.com"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
@@ -559,7 +560,7 @@ export function TournamentGateway() {
               </div>
 
               <div className="flex flex-col gap-1.5 md:col-span-2">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Residential Base Address *</label>
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-400">Home Address *</label>
                 <input 
                   type="text" required value={pubAddress} onChange={(e) => setPubAddress(e.target.value)} placeholder="Barangay, City, Province"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-hidden focus:border-purple-500"
@@ -569,7 +570,7 @@ export function TournamentGateway() {
               {/* DIRECT CLOUD BINARY FILE UPLOADER STRIP */}
               <div className="flex flex-col gap-1.5 md:col-span-2 border-t border-dashed border-slate-800 pt-4 mt-2">
                 <label className="text-[10px] font-mono font-bold uppercase text-purple-400 flex items-center gap-1">
-                  <FileImage className="h-3.5 w-3.5" /> Upload Proof of Entry Payment Fee *
+                  <FileImage className="h-3.5 w-3.5" /> Upload Your Payment Receipt or Screenshot *
                 </label>
                 <div className="relative border border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/40 rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-colors group">
                   <input 
@@ -581,7 +582,7 @@ export function TournamentGateway() {
                   />
                   <Upload className="h-5 w-5 text-slate-500 group-hover:text-purple-400 transition-colors" />
                   <span className="text-[11px] font-mono text-slate-400 group-hover:text-slate-200 transition-colors truncate max-w-xs">
-                    {pubFile ? pubFile.name : "Choose File snippet or Receipt image..."}
+                    {pubFile ? pubFile.name : "Click or drag your payment slip image file here..."}
                   </span>
                 </div>
               </div>
@@ -593,10 +594,10 @@ export function TournamentGateway() {
               >
                 {pubFormSubmitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Processing your submission...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Saving registration details...
                   </>
                 ) : (
-                  "Submit Registration ➔"
+                  "Register Team ➔"
                 )}
               </button>
             </form>
@@ -604,14 +605,113 @@ export function TournamentGateway() {
         </section>
       )}
 
+      {/* =========================================================================
+       * 💻 & 📱 HIGH-DENSITY IMMERSIVE MULTI-COLUMN RESPONSIVE FOOTER COMPONENT
+       * ========================================================================= */}
+      <footer className="mt-auto pt-16 border-t border-slate-800 text-left bg-slate-950 w-full">
+        <div className="max-w-6xl mx-auto px-4 pb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 pb-12 border-b border-slate-800">
+            
+            {/* BLOCK 1: DEPLOYMENT STACK LOGO BRIEF BRANDING LAYOUT */}
+            <div className="lg:col-span-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-[#64317C] dark:text-purple-400" />
+                <span className="font-mono font-black uppercase text-xs tracking-wider text-white">
+                  Altori Park Hub System
+                </span>
+              </div>
+              <p className="text-slate-400 text-xs font-medium leading-relaxed max-w-sm">
+                Next-generation modular bracket management system and tournament tracking network, streamlining public entry processing and live bracket telemetry updates.
+              </p>
+            </div>
+
+            {/* BLOCK 2: TOURNAMENT UTILITY DIRECTORY CHANNELS */}
+            <div className="lg:col-span-3 space-y-3">
+              <h4 className="font-mono font-black uppercase text-[10px] tracking-widest text-slate-500">
+                Ecosystem Hub
+              </h4>
+              <ul className="flex flex-col gap-2.5 font-mono text-xs font-bold uppercase tracking-wide">
+                <li>
+                  <Link to="/about" className="text-slate-400 hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                    <ChevronRight className="h-3 w-3 opacity-50" /> About Arena
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/tournaments" className="text-slate-400 hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                    <ChevronRight className="h-3 w-3 opacity-50" /> Tournaments List
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/schedule" className="text-slate-400 hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                    <ChevronRight className="h-3 w-3 opacity-50" /> Court Schedules
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* BLOCK 3: SUPPORT LEGAL DIRECTORY INDEX */}
+            <div className="lg:col-span-2 space-y-3">
+              <h4 className="font-mono font-black uppercase text-[10px] tracking-widest text-slate-500">
+                Legal Base
+              </h4>
+              <ul className="flex flex-col gap-2.5 font-mono text-xs font-bold uppercase tracking-wide">
+                <li>
+                  <Link to="/privacy" className="text-slate-400 hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                    <ChevronRight className="h-3 w-3 opacity-50" /> Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/terms" className="text-slate-400 hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                    <ChevronRight className="h-3 w-3 opacity-50" /> Terms & Rules
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/cookies" className="text-slate-400 hover:text-purple-400 inline-flex items-center gap-1 transition-colors">
+                    <ChevronRight className="h-3 w-3 opacity-50" /> Cookie Maps
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* BLOCK 4: REGIONAL GEO-COORDINATION ADAPTER LAYER */}
+            <div className="lg:col-span-3 space-y-3 text-slate-400 text-xs">
+              <h4 className="font-mono font-black uppercase text-[10px] tracking-widest text-slate-500">
+                Venue Location
+              </h4>
+              <ul className="space-y-2.5 font-sans font-medium">
+                <li className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+                  <span>Altori Park Pickleball, Matatag Park Square, Nunez Ext St, General Santos City, Philippines</span>
+                </li>
+                <li className="flex items-center gap-2 font-mono text-[11px] text-slate-500">
+                  <Phone className="h-3.5 w-3.5 shrink-0" />
+                  <span>+63 (083) 552-ALTORI</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* CORE BASE LEVEL FOOTPRINT ATTRIBUTION ROWS */}
+          <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-1.5 text-center sm:text-left">
+              <ShieldCheck className="h-4 w-4 text-[#088505]" /> 
+              <span>Altori Park Pickleball • All Rights Reserved • Powered by Reiem Digitals</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>© {new Date().getFullYear()} Altori Park</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+
       {/* 📋 ADD NEW DIVISION OVERLAY MODAL FORM */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800 max-w-lg w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-150 text-left shadow-2xl">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">Configure New Tournament Tier</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Append an entry division node parameters to this arena instance.</p>
+                <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">Create New Division Bracket</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Set up the registration options, entry fee, and cash prizes for a new division.</p>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
@@ -624,7 +724,7 @@ export function TournamentGateway() {
             <form onSubmit={handleCreateCategory} className="space-y-3 font-sans text-xs">
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Division Name ID *</label>
+                  <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Division Name *</label>
                   <input 
                     type="text" 
                     placeholder="e.g., Advanced Men's Singles (4.0+)" 
@@ -635,11 +735,11 @@ export function TournamentGateway() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Format Match Type</label>
+                  <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Match Format</label>
                   <select 
                     value={newCategoryType} 
                     onChange={(e) => setNewCategoryType(e.target.value as 'Singles' | 'Doubles')} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-white focus:outline-hidden focus:border-purple-500 cursor-pointer"
                   >
                     <option value="Doubles">Doubles Match</option>
                     <option value="Singles">Singles Match</option>
@@ -653,7 +753,7 @@ export function TournamentGateway() {
                   <select 
                     value={newGenderDiv} 
                     onChange={(e) => setNewGenderDiv(e.target.value as 'Mixed' | 'Male' | 'Female')} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-white focus:outline-hidden focus:border-purple-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-white focus:outline-hidden focus:border-purple-500 cursor-pointer"
                   >
                     <option value="Mixed">Mixed (Coed)</option>
                     <option value="Male">Male</option>
@@ -681,7 +781,7 @@ export function TournamentGateway() {
               </div>
 
               <div className="border-t border-slate-800/60 pt-3">
-                <label className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider block mb-2">Cash Prize Payout Structure (PHP)</label>
+                <label className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider block mb-2">Cash Prizes (PHP)</label>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[9px] font-mono font-bold text-slate-500 uppercase">🥇 1st Place</label>
@@ -711,7 +811,7 @@ export function TournamentGateway() {
                   disabled={formSubmitting} 
                   className="px-5 py-2 bg-[#088505] text-white rounded-xl hover:bg-opacity-90 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                 >
-                  {formSubmitting ? "Deploying..." : "Inject Division"}
+                  {formSubmitting ? "Deploying..." : "Create Division"}
                 </button>
               </div>
             </form>
