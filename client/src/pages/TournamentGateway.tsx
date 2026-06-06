@@ -534,8 +534,8 @@ export function TournamentGateway() {
                 </span>
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed max-w-sm">
-                Next-generation modular bracket management system and tournament tracking network, streamlining public entry processing and live bracket telemetry updates.
-              </p>
+  Your ultimate tournament companion. Sign up for divisions in seconds, track live match scores, and follow real-time bracket updates as the action unfolds on the court.
+</p>
             </div>
 
             {/* BLOCK 2: TOURNAMENT UTILITY DIRECTORY CHANNELS */}
