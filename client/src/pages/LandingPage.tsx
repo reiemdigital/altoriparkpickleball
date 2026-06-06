@@ -147,98 +147,99 @@ export function LandingPage() {
     <div className="animate-in fade-in duration-300 w-full flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen font-sans selection:bg-[#088505]/30">
       
       {/* 1. HIGH-IMPACT HERO CORE SECTION */}
-      <section className="relative overflow-hidden py-28 lg:py-40 bg-slate-900 text-white w-full border-b border-slate-800/60">
-        {/* Background Graphic Asset Accents */}
-        <div className="absolute inset-0 z-0 opacity-20 mix-blend-luminosity pointer-events-none">
-          <img 
-            src="https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=1600" 
-            alt="Indoor Sports Cushion Court" 
-            className="w-full h-full object-cover object-center scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900/90 to-slate-950" />
-        </div>
+<section className="relative overflow-hidden py-28 lg:py-40 bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-white w-full border-b border-slate-200 dark:border-slate-800/60 transition-colors duration-200">
+  
+  {/* Background Graphic Asset Accents */}
+  <div className="absolute inset-0 z-0 opacity-10 dark:opacity-20 mix-blend-luminosity pointer-events-none transition-opacity duration-200">
+    <img 
+      src="https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=1600" 
+      alt="Indoor Sports Cushion Court" 
+      className="w-full h-full object-cover object-center scale-105"
+    />
+    <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-slate-100/90 to-slate-50 dark:from-slate-950 dark:via-slate-900/90 dark:to-slate-950 transition-colors duration-200" />
+  </div>
 
-        {/* Ambient Blur Nodes */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 sm:w-125 h-96 sm:h-125 bg-[#64317C]/20 rounded-full blur-[120px] pointer-events-none z-0" />
-        <div className="absolute bottom-10 right-10 w-72 h-72 bg-[#088505]/10 rounded-full blur-[100px] pointer-events-none z-0" />
+  {/* Ambient Blur Nodes - Toned down in light mode to keep backdrop clean */}
+  <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 sm:w-125 h-96 sm:h-125 bg-[#64317C]/5 dark:bg-[#64317C]/20 rounded-full blur-[120px] pointer-events-none z-0 transition-colors duration-200" />
+  <div className="absolute bottom-10 right-10 w-72 h-72 bg-[#088505]/5 dark:bg-[#088505]/10 rounded-full blur-[100px] pointer-events-none z-0 transition-colors duration-200" />
 
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
-          <div className="lg:col-span-7 space-y-6 text-left">
-            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#64317C]/20 border border-[#64317C]/40 rounded-full text-xs font-mono font-black text-purple-400 uppercase tracking-wider backdrop-blur-xs">
-              <Sparkles className="h-3.5 w-3.5 text-purple-400 animate-spin" style={{ animationDuration: '3s' }} /> Premium Indoor & Outdoor Facility
-            </span>
-            
-            <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-[0.95] uppercase font-sans">
-              Built for the Game <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#088505] via-emerald-400 to-teal-400 italic font-serif normal-case tracking-normal">
-                Engineered for You
-              </span>
-            </h1>
-            
-            <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed font-medium">
-              Step onto General Santos City's premier pickleball facility. Whether you prefer our premium climate-controlled indoor cushion courts or playing under the open sky on our outdoor courts, we offer a top-tier athletic center built for true competitors.
-            </p>
-            
-            <div className="flex flex-wrap gap-4 pt-2">
-              <Link 
-                to="/tournaments" 
-                className="bg-[#088505] hover:bg-[#066404] text-white font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-lg shadow-[#088505]/20 flex items-center gap-2 group cursor-pointer"
-              >
-                Explore Tournament Hub <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <a 
-                href={SPORTS360_URL}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-slate-800/80 border border-slate-700 text-slate-200 hover:bg-slate-700 font-bold text-xs uppercase tracking-widest px-7 py-4 rounded-xl transition-all backdrop-blur-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                Reserve Active Court
-              </a>
+  <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+    <div className="lg:col-span-7 space-y-6 text-left">
+      <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-purple-50 border border-purple-200 text-purple-700 dark:bg-[#64317C]/20 dark:border-[#64317C]/40 dark:text-purple-400 rounded-full text-xs font-mono font-black uppercase tracking-wider backdrop-blur-xs transition-colors duration-200">
+        <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 animate-spin" style={{ animationDuration: '3s' }} /> Premium Indoor & Outdoor Facility
+      </span>
+      
+      <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-[0.95] uppercase font-sans text-slate-900 dark:text-white">
+        Built for the Game <br />
+        <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#088505] via-emerald-500 to-teal-500 dark:from-[#088505] dark:via-emerald-400 dark:to-teal-400 italic font-serif normal-case tracking-normal">
+          Engineered for You
+        </span>
+      </h1>
+      
+      <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-xl leading-relaxed font-medium transition-colors duration-200">
+        Step onto General Santos City's premier pickleball facility. Whether you prefer our premium climate-controlled indoor cushion courts or playing under the open sky on our outdoor courts, we offer a top-tier athletic center built for true competitors.
+      </p>
+      
+      <div className="flex flex-wrap gap-4 pt-2">
+        <Link 
+          to="/tournaments" 
+          className="bg-[#088505] hover:bg-[#066404] text-white font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-lg shadow-[#088505]/20 flex items-center gap-2 group cursor-pointer"
+        >
+          Explore Tournament Hub <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+        </Link>
+        <a 
+          href={SPORTS360_URL}
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 font-bold text-xs uppercase tracking-widest px-7 py-4 rounded-xl transition-all backdrop-blur-xs flex items-center gap-1.5 cursor-pointer transition-colors duration-200"
+        >
+          Reserve Active Court
+        </a>
+      </div>
+    </div>
+    
+    {/* Hero Standalone Feature Widget */}
+    <div className="lg:col-span-5 relative hidden lg:block">
+      <div className="p-1 bg-gradient-to-br from-purple-200 to-transparent dark:from-[#64317C] dark:to-transparent rounded-3xl shadow-xl dark:shadow-2xl dark:shadow-black/40 transition-all duration-200">
+        <div className="bg-white/90 dark:bg-slate-950/90 rounded-[22px] p-6 space-y-6 backdrop-blur-md border border-white dark:border-none transition-colors duration-200">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 transition-colors duration-200">
+            <div className="text-left">
+              <div className="text-[10px] font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Venue Location</div>
+              <div className="text-lg font-black font-sans uppercase text-slate-800 dark:text-slate-200 flex items-center gap-1 transition-colors duration-200">
+                <MapPin className="h-4 w-4 text-rose-500" /> Altori Park Pickleball
+              </div>
+            </div>
+            <div className="px-3 py-1 bg-purple-50 border border-purple-100 dark:bg-[#64317C]/20 dark:border-[#64317C]/40 rounded-lg text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide transition-colors duration-200">
+              8 Courts Available
             </div>
           </div>
-          
-          {/* Hero Standalone Feature Widget */}
-          <div className="lg:col-span-5 relative hidden lg:block">
-            <div className="p-1 bg-gradient-to-br from-[#64317C] to-transparent rounded-3xl shadow-2xl shadow-black/40">
-              <div className="bg-slate-950/90 rounded-[22px] p-6 space-y-6 backdrop-blur-md">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div className="text-left">
-                    <div className="text-[10px] font-mono font-black text-slate-500 uppercase tracking-widest">Venue Location</div>
-                    <div className="text-lg font-black font-sans uppercase text-slate-200 flex items-center gap-1">
-                      <MapPin className="h-4 w-4 text-rose-500" /> Altori Park Pickleball
-                    </div>
-                  </div>
-                  <div className="px-3 py-1 bg-[#64317C]/20 border border-[#64317C]/40 rounded-lg text-[10px] font-mono font-bold text-purple-300 uppercase tracking-wide">
-                    8 Courts Available
-                  </div>
-                </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4 p-3 bg-slate-900/60 border border-slate-800 rounded-xl text-left">
-                    <div className="h-10 w-10 rounded-lg bg-[#64317C]/10 border border-[#64317C]/20 flex items-center justify-center shrink-0 text-[#64317C]">
-                      <Trophy className="h-5 w-5 text-purple-400" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black uppercase text-slate-300 tracking-wide">Tournament Ready Courts</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Instant ladder advancement math processed natively across live court scores.</p>
-                    </div>
-                  </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-100 dark:bg-slate-900/60 dark:border-slate-800 rounded-xl text-left transition-colors duration-200">
+              <div className="h-10 w-10 rounded-lg bg-purple-50 border border-purple-100 dark:bg-[#64317C]/10 dark:border-[#64317C]/20 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400 transition-colors duration-200">
+                <Trophy className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-300 tracking-wide transition-colors duration-200">Tournament Ready Courts</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-0.5 transition-colors duration-200">Instant ladder advancement math processed natively across live court scores.</p>
+              </div>
+            </div>
 
-                  <div className="flex items-center gap-4 p-3 bg-slate-900/60 border border-slate-800 rounded-xl text-left">
-                    <div className="h-10 w-10 rounded-lg bg-[#088505]/10 border border-[#088505]/20 flex items-center justify-center shrink-0 text-[#088505]">
-                      <Users className="h-5 w-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black uppercase text-slate-300 tracking-wide">Balanced Open Play</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Automated player metrics guarantee competitive parity across matches.</p>
-                    </div>
-                  </div>
-                </div>
+            <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-100 dark:bg-slate-900/60 dark:border-slate-800 rounded-xl text-left transition-colors duration-200">
+              <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 dark:bg-[#088505]/10 dark:border-[#088505]/20 flex items-center justify-center shrink-0 text-[#088505] dark:text-emerald-400 transition-colors duration-200">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-300 tracking-wide transition-colors duration-200">Balanced Open Play</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-0.5 transition-colors duration-200">Automated player metrics guarantee competitive parity across matches.</p>
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* 2. INFINITE BRAND PERFORMANCE MARQUEE */}
       <section className="bg-white dark:bg-slate-900 border-b border-slate-200/60 dark:border-white/5 py-8 overflow-hidden relative w-full select-none">
@@ -444,33 +445,35 @@ export function LandingPage() {
       </section>
 
       {/* 6. TOURNAMENT HUB FLAGSHIP INTERACTIVE SHOWCASE */}
-      <section className="py-12 max-w-7xl mx-auto px-4 w-full">
-        <div className="relative overflow-hidden bg-slate-900 text-white rounded-3xl p-8 sm:p-12 text-left border border-slate-800 shadow-2xl">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-[#088505]/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#64317C]/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="max-w-2xl space-y-4 relative z-10">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-md text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
-              🔥 Open Registrations Active
-            </span>
-            <h3 className="text-2xl sm:text-4xl font-black font-sans uppercase tracking-tight leading-tight">
-              Ready to claim your place <br />
-              inside the arena leaderboard?
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-xl">
-              Don't miss our flagship championship brackets. Secure your roster tracking allocation slots now or step onto visitors streams to follow active match data arrays live.
-            </p>
-            <div className="pt-4">
-              <Link 
-                to="/tournaments" 
-                className="inline-flex bg-[#088505] hover:bg-opacity-95 text-white font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-md shadow-[#088505]/10 items-center gap-2 group cursor-pointer"
-              >
-                View Live & Upcoming Tournaments <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+<section className="py-12 max-w-7xl mx-auto px-4 w-full">
+  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-slate-50 text-slate-900 dark:from-slate-900 dark:to-slate-950 dark:text-white rounded-3xl p-8 sm:p-12 text-left border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-2xl transition-all duration-200">
+    
+    {/* Ambient Blur Background Accents */}
+    <div className="absolute top-0 right-0 w-80 h-80 bg-[#088505]/5 dark:bg-[#088505]/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#64317C]/5 dark:bg-[#64317C]/10 rounded-full blur-3xl pointer-events-none" />
+    
+    <div className="max-w-2xl space-y-4 relative z-10">
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/[0.08] border border-amber-500/30 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-md text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider transition-colors duration-200">
+        🔥 Open Registrations Active
+      </span>
+      <h3 className="text-2xl sm:text-4xl font-black font-sans uppercase tracking-tight leading-tight">
+        Ready to claim your place <br />
+        inside the arena leaderboard?
+      </h3>
+      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-xl transition-colors duration-200">
+        Don't miss our flagship championship brackets. Secure your roster tracking allocation slots now or step onto visitors streams to follow active match data arrays live.
+      </p>
+      <div className="pt-4">
+        <Link 
+          to="/tournaments" 
+          className="inline-flex bg-[#088505] hover:bg-[#066404] text-white font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-md shadow-[#088505]/20 items-center gap-2 group cursor-pointer"
+        >
+          View Live & Upcoming Tournaments <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+        </Link>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* 7. DYNAMIC SOCIAL PROOF GRID LAYOUT & HIGH-DENSITY RESPONSIVE FOOTER */}
       <section className="py-24 bg-slate-100 dark:bg-slate-900/20 w-full border-t border-slate-200/60 dark:border-slate-900">

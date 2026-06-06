@@ -337,7 +337,7 @@ export function TournamentGateway() {
         <div className="p-5 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl text-left shadow-xs transition-colors duration-200">
           <div className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tournament Style</div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">Dual-Stage</div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Pool play matchups leading into single-elimination brackets.</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Hard Play in Round-Robin and leading into single-elimination brackets.</p>
         </div>
       </section>
 
