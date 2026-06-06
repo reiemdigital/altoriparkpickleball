@@ -8,8 +8,7 @@ import { SOCKET_URL, socket } from '../socket';
 import { 
   UserPlus, Settings2, Users, Layers, Play, Trash2, Edit2, 
   Check, X, GripVertical, Sparkles, AlertCircle, Eye, 
-  ShieldCheck, Loader2, FileText, User
-} from 'lucide-react';
+  ShieldCheck, Loader2, FileText, User} from 'lucide-react';
 
 interface PlayerModel {
   id: string;
@@ -30,7 +29,7 @@ interface TeamRosterModel {
   points_against: number;
   group_id: string | null;
   category?: string;
-  contactNo?: string;
+  contact_no?: string; // 🛡️ Aligned with real PostgreSQL backend database columns
   address?: string;
   email?: string;
   players?: PlayerModel[];
@@ -103,9 +102,13 @@ export const RegistrationPortal = () => {
       setGatewayData(gatewayRes.data);
       setMatches(matchesRes.data);
       
-      // Filter out incoming rows that are strictly marked as pending payment confirmations
-      const unverifiedItems = pendingTeamsRes.data.filter((t: TeamRosterModel) => t.registration_status === 'PENDING');
-      setPendingTeams(unverifiedItems);
+      // 🛡️ SENIOR DEFENSIVE GUARD: Ensure incoming payload data is an array format before filtering to avoid type crashes
+      if (pendingTeamsRes && Array.isArray(pendingTeamsRes.data)) {
+        const unverifiedItems = pendingTeamsRes.data.filter((t: TeamRosterModel) => t.registration_status === 'PENDING');
+        setPendingTeams(unverifiedItems);
+      } else {
+        setPendingTeams([]);
+      }
     } catch (err) {
       console.error("Failed to refresh real-time registration sync data:", err);
     } finally {
@@ -115,11 +118,9 @@ export const RegistrationPortal = () => {
 
   // Handle baseline initial hydration sequence on mount
   useEffect(() => {
-    // 🛡️ FIX: Environment-agnostic timer type matching browser return structures
     let deferTask: ReturnType<typeof setTimeout>;
 
     if (tournamentId) {
-      // Defer execution to a macro-task queue to eliminate synchronous cascading re-renders
       deferTask = setTimeout(() => {
         refreshData();
       }, 0);
@@ -424,7 +425,7 @@ export const RegistrationPortal = () => {
 
             {isPendingLoading ? (
               <div className="py-24 text-center font-mono text-xs text-slate-400 flex flex-col items-center justify-center gap-2">
-                <Loader2 className="h-5 w-5延 animate-spin text-purple-500" /> Aligning ledger pipelines...
+                <Loader2 className="h-5 w-5 animate-spin text-purple-500" /> Aligning ledger pipelines...
               </div>
             ) : pendingTeams.length === 0 ? (
               <div className="py-24 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-center font-mono text-xs text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
@@ -432,7 +433,7 @@ export const RegistrationPortal = () => {
               </div>
             ) : (
               <>
-                {/* 🖥️ VIEW VARIANT A: DESKTOP ADAPTER HIGH-DENSITY GRID (Visible above 768px viewports) */}
+                {/* 🖥️ VIEW VARIANT A: DESKTOP ADAPTER HIGH-DENSITY GRID */}
                 <div className="hidden md:block overflow-x-auto w-full border border-slate-200 dark:border-white/5 rounded-xl bg-slate-50/50 dark:bg-slate-950/20">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
@@ -459,7 +460,7 @@ export const RegistrationPortal = () => {
                             </span>
                           </td>
                           <td className="p-3 font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                            <div>{team.contactNo || 'N/A'}</div>
+                            <div>{team.contact_no || 'N/A'}</div>
                             <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{team.email || ''}</div>
                           </td>
                           <td className="p-3 text-center">
@@ -490,7 +491,7 @@ export const RegistrationPortal = () => {
                   </table>
                 </div>
 
-                {/* 📱 VIEW VARIANT B: MOBILE LAYER CARD ENGINE (Visible exclusively below 768px viewports) */}
+                {/* 📱 VIEW VARIANT B: MOBILE LAYER CARD ENGINE */}
                 <div className="block md:hidden space-y-3 w-full">
                   {pendingTeams.map((team) => (
                     <div key={team.id} className="p-4 bg-slate-50 dark:bg-white/2 border border-slate-200 dark:border-white/5 rounded-xl space-y-3 flex flex-col text-xs">
@@ -507,7 +508,7 @@ export const RegistrationPortal = () => {
                       </div>
 
                       <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
-                        <div>📞 Contact: {team.contactNo || 'N/A'}</div>
+                        <div>📞 Contact: {team.contact_no || 'N/A'}</div>
                         <div className="truncate max-w-xs text-[10px]">{team.email || 'No email saved'}</div>
                       </div>
 

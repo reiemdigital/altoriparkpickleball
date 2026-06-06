@@ -7,7 +7,7 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import path from 'path'; //  ADDED: Essential for production asset path resolution
+import path from 'path'; 
 // FIXED: Retained explicit .js extension for ES Module runtime compliance under NodeNext resolution
 import { supabase } from './config/supabase.js';
 
@@ -37,6 +37,7 @@ interface Team {
   address?: string | null;
   contact_no?: string | null;
   email?: string | null;
+  payment_proof_url?: string | null;
 }
 
 interface Match {
@@ -285,6 +286,24 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
   }
 });
 
+// ⚡ ADDED: AUTHENTICATED RETRIEVAL ENDPOINT FOR ADMIN QUEUE ENTRIES
+app.get('/api/admin/tournaments/:tournamentId/teams', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+  const { tournamentId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('tournament_id', tournamentId);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.json(data || []);
+  } catch {
+    return res.status(500).json({ error: 'Failed to extract verification registry records.' });
+  }
+});
+
 // SECURE PAYMENT VERIFICATION ACTION ENDPOINT
 app.put('/api/admin/teams/:id/verify-payment', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -317,7 +336,6 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
 
   try {
     // 🛡️ SERVER-SIDE IDENTITY DETECTION
-    // Soft-check incoming authentication tokens from cookies or bearer headers seamlessly
     let serverVerifiedAdmin = false;
     try {
       let token = req.cookies?.token;
@@ -333,7 +351,6 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
         }
       }
     } catch {
-      // Soft-fail: If token is expired or missing, fall back to guest spectator view safely
       serverVerifiedAdmin = false;
     }
 
@@ -379,7 +396,6 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
       return res.status(400).json({ error: teamsCountError.message });
     }
 
-    // 🔥 RETURN THE VERIFIED FLAG
     return res.status(200).json({
       tournament,
       categories: categories || [],
@@ -387,7 +403,7 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
         liveMatchesCount: liveMatchesCount || 0,
         registeredPlayersCount: registeredPlayersCount || 0
       },
-      isAdmin: serverVerifiedAdmin // Embedded server-verified clearance flag
+      isAdmin: serverVerifiedAdmin 
     });
 
   } catch {
@@ -511,13 +527,12 @@ app.post('/api/tournaments/:id/seed-categories', requireAuth(['Admin']), async (
   }
 });
 
-// server/src/index.ts (Inside Category Creation Route handler)
 app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   const { 
     category_name, gender_division, category_type, entry_fee, max_slots, 
     prize_first, prize_second, prize_third 
-  } = req.body; // 🏓 Captured category_type from frontend form submission
+  } = req.body; 
 
   if (!category_name) {
     return res.status(400).json({ error: "Validation failure: Division category name is required." });
@@ -531,7 +546,7 @@ app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), as
           tournament_id: tournamentId,
           category_name: category_name.trim(),
           gender_division: gender_division || 'Mixed',
-          category_type: category_type || 'Doubles', // 🔥 Inserted format token explicitly
+          category_type: category_type || 'Doubles', 
           entry_fee: parseFloat(entry_fee) || 0.00,
           max_slots: parseInt(max_slots, 10) || 16,
           prize_first: parseFloat(prize_first) || 0.00,
@@ -552,12 +567,10 @@ app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), as
   }
 });
 
-// 2. SECURE/DEFENSIVE DELETE CATEGORY DIVISION
 app.delete('/api/categories/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
-    // A. Fetch category context first to know which tournament room to broadcast to later
     const { data: category, error: catFetchError } = await supabase
       .from('categories')
       .select('tournament_id')
@@ -568,7 +581,6 @@ app.delete('/api/categories/:id', requireAuth(['Admin']), async (req: Request, r
       return res.status(404).json({ error: "Category record not found." });
     }
 
-    // B. DEFENSIVE GUARD: Query if any teams are currently registered under this category string
     const { count: teamCount, error: teamCheckError } = await supabase
       .from('teams')
       .select('*', { count: 'exact', head: true })
@@ -582,7 +594,6 @@ app.delete('/api/categories/:id', requireAuth(['Admin']), async (req: Request, r
       });
     }
 
-    // C. Clear execution path verified -> Proceed to drop row entity safely
     const { error: deleteError } = await supabase
       .from('categories')
       .delete()
@@ -590,7 +601,6 @@ app.delete('/api/categories/:id', requireAuth(['Admin']), async (req: Request, r
 
     if (deleteError) throw deleteError;
 
-    // Broadcast update globally to clear DOM layouts without manual page reloads
     io.to(`tournament:${category.tournament_id}`).emit('registration-updated');
     return res.json({ success: true, message: "Division context successfully purged." });
   } catch (err: any) {
@@ -733,7 +743,6 @@ app.put('/api/matches/:id/cancel', requireAuth(['Admin']), async (req: Request, 
   }
 });
 
-// ADMIN MATCH DEFAULT / WALKOVER FLOW - PROTECTED
 app.put('/api/matches/:id/default', requireAuth(['Admin']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { absentTeamNum } = req.body; 
@@ -766,7 +775,6 @@ app.put('/api/matches/:id/default', requireAuth(['Admin']), async (req: Request,
       return res.status(400).json({ error: "Could not resolve valid team identity text strings from match keys." });
     }
 
-    // FIXED: Removed the non-existent 'winner_id' column payload from the database update schema object
     const { data: updatedMatch, error: uError } = await supabase
       .from('matches')
       .update({
@@ -940,7 +948,8 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
     const { data: teams, error } = await supabase
       .from('teams')
       .select('*')
-      .eq('tournament_id', tournamentId);
+      .eq('tournament_id', tournamentId)
+      .eq('registration_status', 'CONFIRMED'); // 🛡️ Fix: Exclude pending uploads from live roster pools
 
     if (error) {
       return res.status(400).json({ error: error.message });
@@ -999,7 +1008,7 @@ app.post('/api/brackets/generate', requireAuth(['Admin']), async (req: Request, 
       return res.status(400).json({ error: "Playoff brackets have already been generated for this tier." });
     }
 
-    const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId);
+    const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId).eq('registration_status', 'CONFIRMED');
     if (!teams || teams.length < 4) {
       return res.status(400).json({ error: "Insufficient team datasets. Minimum 4 contenders required." });
     }
@@ -1101,7 +1110,6 @@ app.put('/api/config/category-settings', requireAuth(['Admin']), async (req: Req
 });
 
 app.post('/api/teams/register', async (req: Request, res: Response) => {
-  // Destructure paymentProofUrl alongside your standard text payload properties
   const { 
     tournamentId, 
     categoryId, 
@@ -1111,17 +1119,15 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
     contactNo, 
     address, 
     email,
-    paymentProofUrl // 📸 URL path text token string passed back from frontend direct upload
+    paymentProofUrl 
   } = req.body;
 
   try {
-    // 1. SYSTEM UUID REGEX PATH SECURITY VERIFICATION
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!tournamentId || !uuidRegex.test(tournamentId) || !categoryId || !uuidRegex.test(categoryId)) {
       return res.status(400).json({ error: "Operational Block: Ensure you are accessing a valid tournament URL parameter path." });
     }
 
-    // 2. VALIDATE TARGET DIVISION EXISTENCE IN SYSTEM REGISTRIES
     const { data: tier, error: tierError } = await supabase
       .from('categories')
       .select('*')
@@ -1133,13 +1139,11 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
       return res.status(404).json({ error: "The selected division category does not exist for this tournament track." });
     }
 
-    // 3. SECURE CAPACITY CHECK: Query only 'CONFIRMED' teams
-    // This ensures pending registrations with unverified payments do not block open pool capacity slots
     const { count: currentConfirmedCount, error: countError } = await supabase
       .from('teams')
       .select('*', { count: 'exact', head: true })
       .eq('category_id', categoryId)
-      .eq('registration_status', 'CONFIRMED'); // 🌟 Crucial filter adjustment
+      .eq('registration_status', 'CONFIRMED'); 
 
     if (countError) throw countError;
 
@@ -1148,12 +1152,8 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Registration blocked. Category limit of ${maxLimit} entries reached.` });
     }
 
-    // 4. DYNAMIC ENVIRONMENT STATUS LAYER INDUCTION
-    // If a payment token string is attached, it's public -> defaults to PENDING. 
-    // If absent, it represents a manual override from the admin onboarding dashboard -> defaults to CONFIRMED.
     const calculatedStatus = paymentProofUrl ? 'PENDING' : 'CONFIRMED';
 
-    // 5. COMMITTING MULTIPART DATA PAYLOAD MAPS TO DATABASE LAYER
     const { data: newTeam, error: insertError } = await supabase
       .from('teams')
       .insert({
@@ -1165,15 +1165,14 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
         contact_no: contactNo || null,
         address: address || null,
         email: email || null,
-        payment_proof_url: paymentProofUrl || null, // Persists public access file path string link
-        registration_status: calculatedStatus        // Bound directly to the calculated track
+        payment_proof_url: paymentProofUrl || null, 
+        registration_status: calculatedStatus        
       })
       .select()
       .single();
 
     if (insertError) throw insertError;
 
-    // 6. LIVE REAL-TIME TELEMETRY RE-HYDRATION ENGINE EMITS
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
     io.to(`tournament:${tournamentId}`).emit('standings-refresh');
     
@@ -1211,7 +1210,8 @@ app.post('/api/groups/auto-allocate', requireAuth(['Admin']), async (req: Reques
       .from('teams')
       .select('*')
       .eq('tournament_id', tournamentId)
-      .eq('category_id', categoryId);
+      .eq('category_id', categoryId)
+      .eq('registration_status', 'CONFIRMED');
 
     if (error || !teams) throw error;
 
@@ -1238,7 +1238,8 @@ app.post('/api/groups/generate', requireAuth(['Admin']), async (req: Request, re
       .from('teams')
       .select('*')
       .eq('tournament_id', tournamentId)
-      .eq('category_id', categoryId);
+      .eq('category_id', categoryId)
+      .eq('registration_status', 'CONFIRMED');
 
     if (!teams || teams.length === 0) {
       return res.status(400).json({ error: "Roster empty. Cannot generate rounds for zero entrants." });
@@ -1333,10 +1334,8 @@ app.delete('/api/teams/:id', requireAuth(['Admin']), async (req: Request, res: R
  * ======================================================= */
 const clientDistPath = path.join(process.cwd(), 'client/dist');
 
-// Serve the static JS, CSS, and media bundles from the compiled directory 
 app.use(express.static(clientDistPath));
 
-// Catch-All Routing: Guides initial page hits and refreshes cleanly to React Router
 app.get('*', (req: Request, res: Response) => {
   res.sendFile(path.join(clientDistPath, 'index.html'));
 });
