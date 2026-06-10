@@ -8,7 +8,7 @@ import { supabaseStorage } from '../config/supabaseClient';
 import { 
   Calendar, MapPin, Layers, ArrowRight, ExternalLink, 
   Settings, Check, Loader2, Plus, Trash2, X, Upload, FileImage,
-  Trophy, ChevronRight, Phone, ShieldCheck, UserPlus 
+  Trophy, ChevronRight, Phone, ShieldCheck, UserPlus, AlertTriangle
 } from 'lucide-react';
 
 /** =======================================================
@@ -42,7 +42,13 @@ export function TournamentGateway() {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false); // 🌟 Dynamic Public Entry Modal Switcher
+  const [showRegisterModal, setShowRegisterModal] = useState(false); // Dynamic Public Entry Modal Switcher
+  
+  // 🛡️ REFACTOR SYSTEM STATES: Elite state trackers replacing browser popups
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // 📝 ADMINISTRATIVE NEW DIVISION FORM HOOK VARIABLES
   const [newCatName, setNewCatName] = useState('');
@@ -185,20 +191,27 @@ export function TournamentGateway() {
     }
   };
 
-  // Clean execution call to delete target structural categories safely
-  const handleDeleteCategory = async (categoryId: string, name: string) => {
-    const confirmation = window.confirm(`Are you absolutely sure you want to delete the "${name}" division?\nThis action cannot be undone.`);
-    if (!confirmation) return;
+  // Clean execution call to process state-driven database deletion securely
+  const handleExecuteCategoryDelete = async () => {
+    if (!categoryToDelete) return;
+    setDeleteSubmitting(true);
+    setDeleteError(null);
 
     try {
-      await axios.delete(`${SOCKET_URL}/api/categories/${categoryId}`, { withCredentials: true });
+      await axios.delete(`${SOCKET_URL}/api/categories/${categoryToDelete.id}`, { withCredentials: true });
+      
+      // Reset layout state hooks completely upon smooth completion
+      setShowDeleteModal(false);
+      setCategoryToDelete(null);
       await fetchGatewayInfo();
     } catch (err) {
-      let serverErrorMessage = "Failed to drop the division bracket.";
+      let serverErrorMessage = "Failed to remove the division bracket from our system.";
       if (axios.isAxiosError(err)) {
         serverErrorMessage = err.response?.data?.error || serverErrorMessage;
       }
-      alert(serverErrorMessage);
+      setDeleteError(serverErrorMessage);
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -258,7 +271,7 @@ export function TournamentGateway() {
       setPubEmail('');
       setPubFile(null);
       
-      setShowRegisterModal(false); // 🛡️ Dismiss overlay cleanly upon successful ledger commit
+      setShowRegisterModal(false); 
       await fetchGatewayInfo();
 
     } catch (error) {
@@ -337,7 +350,7 @@ export function TournamentGateway() {
         <div className="p-5 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl text-left shadow-xs transition-colors duration-200">
           <div className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tournament Style</div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">Dual-Stage</div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Hard Play in Round-Robin and leading into single-elimination brackets.</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Pool play matchups leading into single-elimination brackets.</p>
         </div>
       </section>
 
@@ -402,16 +415,20 @@ export function TournamentGateway() {
                       <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide">{cat.category_name}</h4>
                       <div className="flex flex-wrap gap-2 items-center">
                         <span className="px-2 py-0.5 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-mono text-[9px] rounded uppercase">Division: {cat.gender_division || 'Mixed'}</span>
-                        <span className="px-2 py-0.5 bg-purple-50 border border-purple-100 text-purple-600 dark:bg-purple-950/40 dark:border-purple-900/30 dark:text-purple-400 font-mono text-[9px] rounded uppercase">Type: {cat.category_type || 'Doubles'}</span>
+                        <span className="px-2 py-0.5 bg-purple-5 border border-purple-100 text-purple-600 dark:bg-purple-950/40 dark:border-purple-900/30 dark:text-purple-400 font-mono text-[9px] rounded uppercase">Type: {cat.category_type || 'Doubles'}</span>
                         <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">Entry Fee: <span className="text-slate-800 dark:text-slate-300 font-bold">₱{cat.entry_fee || '0.00'}</span></span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Contextual Delete Button */}
+                      {/* Contextual Delete Button Linked up to our State Interceptor overlay rather than hard prompts */}
                       {isAdmin && isAdminMode && (
                         <button
-                          onClick={() => handleDeleteCategory(cat.category_id, cat.category_name)}
+                          onClick={() => {
+                            setCategoryToDelete({ id: cat.category_id, name: cat.category_name });
+                            setDeleteError(null);
+                            setShowDeleteModal(true);
+                          }}
                           className="p-1 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 rounded-md hover:bg-red-500/10 transition-all cursor-pointer"
                           title="Delete Division Bracket"
                         >
@@ -421,9 +438,9 @@ export function TournamentGateway() {
 
                       <span className={`px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase tracking-wider ${
                         fillPercentage >= 100 
-                          ? 'bg-purple-50 border border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:border-purple-500/30 dark:text-purple-400' 
+                          ? 'bg-purple-5 border border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:border-purple-500/30 dark:text-purple-400' 
                           : fillPercentage >= 80 
-                            ? 'bg-amber-50 border border-amber-100 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-400' 
+                            ? 'bg-amber-5 border border-amber-100 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-400' 
                             : 'bg-[#088505]/5 border border-[#088505]/20 text-[#088505] dark:bg-[#088505]/10 dark:border-[#088505]/30 dark:text-emerald-400'
                       }`}>
                         {fillPercentage >= 100 ? '🔒 FULL' : `🔥 ${cat.available_slots_remaining} LEFT`}
@@ -490,33 +507,33 @@ export function TournamentGateway() {
       </section>
 
       {/* =========================================================================
- * 🚀 CTA MODULE ANCHOR BOX
- * ========================================================================= */}
-{!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
-  <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left animate-in fade-in duration-300">
-    <div className="relative overflow-hidden bg-gradient-to-r from-purple-50 via-slate-50 to-white border border-slate-200 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/50 dark:border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xs dark:shadow-xl transition-all duration-200">
-      <div className="space-y-2 max-w-xl">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono text-[10px] font-black tracking-wider uppercase bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:border-purple-500/20 dark:text-purple-400">
-          ⚡ Secure Your Slot
-        </span>
-        <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-900 dark:text-white tracking-tight">
-          Ready to take your game to the court?
-        </h3>
-        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-          Registration is currently open for active divisions. Tap the button to fill out your player profile details, submit your entry slip, and claim your seed allocation.
-        </p>
-      </div>
-      
-      <button
-        onClick={() => setShowRegisterModal(true)}
-        className="w-full md:w-auto shrink-0 bg-[#088505] hover:bg-opacity-95 text-white font-black font-mono text-xs uppercase tracking-widest px-8 py-4 rounded-xl shadow-lg shadow-[#088505]/20 flex items-center justify-center gap-2 transition-all cursor-pointer group hover:-translate-y-0.5"
-      >
-        <UserPlus className="h-4 w-4 text-white group-hover:scale-110 transition-transform" /> 
-        Register For This Tournament
-      </button>
-    </div>
-  </section>
-)}
+       * 🚀 CTA MODULE ANCHOR BOX
+       * ========================================================================= */}
+      {!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left animate-in fade-in duration-300">
+          <div className="relative overflow-hidden bg-gradient-to-r from-purple-50 via-slate-50 to-white border border-slate-200 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/50 dark:border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xs dark:shadow-xl transition-all duration-200">
+            <div className="space-y-2 max-w-xl">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono text-[10px] font-black tracking-wider uppercase bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:border-purple-500/20 dark:text-purple-400">
+                ⚡ Secure Your Slot
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-900 dark:text-white tracking-tight">
+                Ready to take your game to the court?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Registration is currently open for active divisions. Tap the button to fill out your player profile details, submit your entry slip, and claim your seed allocation.
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className="w-full md:w-auto shrink-0 bg-[#088505] hover:bg-opacity-95 text-white font-black font-mono text-xs uppercase tracking-widest px-8 py-4 rounded-xl shadow-lg shadow-[#088505]/20 flex items-center justify-center gap-2 transition-all cursor-pointer group hover:-translate-y-0.5"
+            >
+              <UserPlus className="h-4 w-4 text-white group-hover:scale-110 transition-transform" /> 
+              Register For This Tournament
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* =========================================================================
        * 💻 & 📱 DUAL-THEME HIGH-DENSITY RESPONSIVE FOOTER COMPONENT
@@ -534,8 +551,8 @@ export function TournamentGateway() {
                 </span>
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed max-w-sm">
-  Your ultimate tournament companion. Sign up for divisions in seconds, track live match scores, and follow real-time bracket updates as the action unfolds on the court.
-</p>
+                Your ultimate tournament companion. Sign up for divisions in seconds, track live match scores, and follow real-time bracket updates as the action unfolds on the court.
+              </p>
             </div>
 
             {/* BLOCK 2: TOURNAMENT UTILITY DIRECTORY CHANNELS */}
@@ -618,7 +635,7 @@ export function TournamentGateway() {
       </footer>
 
       {/* =========================================================================
-       * 📱 📥 INTERACTIVE REGISTRATION MODAL FORM SCREEN
+       * 📱 📥 INTERACTIVE PUBLIC REGISTRATION MODAL OVERLAY
        * ========================================================================= */}
       {showRegisterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
@@ -658,7 +675,7 @@ export function TournamentGateway() {
 
               {!isPubSingles && (
                 <div className="flex flex-col gap-1.5 md:col-span-2 animate-in fade-in duration-150">
-                  <label className="text-[10px] font-mono font-bold uppercase text-slate-400 dark:text-slate-500">Your Team Name</label>
+                  <label className="text-[10px] font-mono font-black uppercase text-slate-400 dark:text-slate-500">Your Team Name</label>
                   <input 
                     type="text" value={pubTeamName} onChange={(e) => setPubTeamName(e.target.value)} required={!isPubSingles} placeholder="e.g., GenSan Smashers"
                     className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-hidden focus:border-purple-500"
@@ -866,6 +883,65 @@ export function TournamentGateway() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+       * ⚠️ 📥 DESTRUCTIVE ACTION WARNING MODAL ALERT OVERLAY
+       * ========================================================================= */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-w-md w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-150 text-center shadow-2xl transition-colors duration-200">
+            
+            {/* Warning Visual Layout Accent */}
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-base font-black font-mono text-slate-900 dark:text-white uppercase tracking-wider">
+                Delete Division Bracket?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                Are you absolutely sure you want to delete the <span className="font-bold text-slate-800 dark:text-slate-200">"{categoryToDelete?.name}"</span> bracket? This will wipe out all corresponding capacity rules and slots information. <span className="text-red-500 dark:text-red-400 font-medium">This action cannot be undone.</span>
+              </p>
+            </div>
+
+            {/* Error Message Box inside the Modal */}
+            {deleteError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-left text-[11px] font-sans font-medium dark:bg-red-950/30 dark:border-red-900/40 dark:text-red-400 animate-in shake duration-200">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2 font-mono text-xs font-bold uppercase tracking-wider">
+              <button
+                type="button"
+                disabled={deleteSubmitting}
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setCategoryToDelete(null);
+                }}
+                className="flex-1 py-3 border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-100 active:scale-[0.985] transition-all cursor-pointer dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteSubmitting}
+                onClick={handleExecuteCategoryDelete}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md shadow-red-600/10 active:scale-[0.985] flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                {deleteSubmitting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Removing...
+                  </>
+                ) : (
+                  "Confirm Delete"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
