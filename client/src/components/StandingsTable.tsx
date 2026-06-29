@@ -1,21 +1,7 @@
 // client/src/components/StandingsTable.tsx
-import { useState, useMemo } from 'react';
-import { useTournamentStore } from '../store/useTournamentStore.js';
+import { useState, useMemo, useEffect } from 'react';
+import { useTournamentStore } from '../store/useTournamentStore';
 import { Trophy, Layers } from 'lucide-react';
-
-const CATEGORIES = [
-  "Open Singles",
-  "Open Doubles(Coed)",
-  "Intermediate Men's Double",
-  "Intermediate Women's Double",
-  "Intermediate Mixed Doubles",
-  "Novice Mens Doubles",
-  "Novice Woman's Doubles",
-  "Novice Mixed Doubles",
-  "Rookie(Coed) Doubles",
-  "Juniors(17yrs old and below)",
-  "50+ men's Doubles"
-];
 
 /** =======================================================
  * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
@@ -45,32 +31,41 @@ export const StandingsTable = () => {
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const matches = useTournamentStore((state) => state.matches);
   
-  // Track currently active category filter view (Default to Open Doubles Coed)
-  const [selectedCategory, setSelectedCategory] = useState<string>(CATEGORIES[1]);
+  // 🛡️ PERFORMANCE BEST PRACTICE: Track selection by unique database key ID instead of mutable strings
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
-  // Resolve UUID category keys from human-readable category name strings
-  const targetCategoryId = useMemo(() => {
-    const categoriesList = (gatewayData?.categories || []) as CategoryMapping[];
-    const matchedCategory = categoriesList.find(c => c.category_name === selectedCategory);
-    return matchedCategory?.category_id || null;
-  }, [gatewayData, selectedCategory]);
+  // Extract real-time categories array directly from dynamic database gate context
+  const databaseCategories = useMemo(() => {
+    return (gatewayData?.categories || []) as CategoryMapping[];
+  }, [gatewayData]);
 
-  // 1. Filter out teams belonging strictly to the resolved category AND must have been seeded officially
+  // ⚡ AUTOMATED STATE LIFECYCLE SYNC LAYER
+  useEffect(() => {
+    if (databaseCategories.length > 0 && !selectedCategoryId) {
+      // Defer macro-task execution timing to break synchronous re-rendering loops seamlessly
+      const deferInit = setTimeout(() => {
+        setSelectedCategoryId(databaseCategories[0].category_id);
+      }, 0);
+      return () => clearTimeout(deferInit);
+    }
+  }, [databaseCategories, selectedCategoryId]);
+
+  // 1. Filter out teams belonging strictly to the resolved category ID AND must have been seeded officially
   const filteredTeams = useMemo(() => {
-    if (!targetCategoryId) return [];
+    if (!selectedCategoryId) return [];
     
     // SENIOR DEV FIX: Check if official match fixtures exist for this category.
     // If no matches exist, the admin hasn't clicked "Seed Pools" yet, so keep the table hidden.
-    const isCategoryOfficiallySeeded = matches.some(match => match.category_id === targetCategoryId);
+    const isCategoryOfficiallySeeded = matches.some(match => match.category_id === selectedCategoryId);
     if (!isCategoryOfficiallySeeded) return [];
 
     return standings.filter(team => 
-      team.category_id === targetCategoryId && 
+      team.category_id === selectedCategoryId && 
       team.group_id && 
       team.group_id.trim() !== '' && 
       team.group_id !== 'Pending Pool Seeding'
     );
-  }, [standings, targetCategoryId, matches]);
+  }, [standings, selectedCategoryId, matches]);
 
   // 2. Separate filtered teams into individual round-robin pools (Group A, Group B, etc.)
   const groupedStandings = useMemo(() => {
@@ -104,10 +99,10 @@ export const StandingsTable = () => {
   }, [groupedStandings]);
 
   return (
-    <div className="p-6 bg-white border border-slate-200/80 rounded-2xl shadow-sm shadow-slate-200/50 dark:border-white/5 dark:bg-slate-900/10 dark:shadow-none transition-all duration-200">
+    <div className="p-6 bg-white border border-slate-200/80 rounded-2xl shadow-sm shadow-slate-200/50 dark:border-white/5 dark:bg-slate-900/50 dark:shadow-none transition-all duration-200">
       
       {/* CARD NAVIGATION CONTROLS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-white/5 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-white/5 pb-4 transition-colors duration-200">
         <div className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-purple-600 dark:text-purple-400" />
           <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
@@ -115,19 +110,23 @@ export const StandingsTable = () => {
           </h2>
         </div>
 
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none dark:bg-slate-950 dark:border-white/10 dark:text-slate-200"
-        >
-          {CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
+        {databaseCategories.length > 0 && (
+          <select
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 transition-colors duration-200 cursor-pointer"
+          >
+            {databaseCategories.map((cat) => (
+              <option key={cat.category_id} value={cat.category_id}>
+                {cat.category_name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {filteredTeams.length === 0 ? (
-        <p className="text-xs text-slate-400 dark:text-slate-500 italic py-8 text-center bg-slate-50/50 dark:bg-white/1 rounded-xl border border-dashed border-slate-200 dark:border-white/5">
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic py-8 text-center bg-slate-50/50 dark:bg-white/[0.02] rounded-xl border border-dashed border-slate-200 dark:border-white/5 transition-all duration-200">
           No active standings available. This division may be empty or awaiting pool seeding.
         </p>
       ) : (
@@ -146,10 +145,10 @@ export const StandingsTable = () => {
                 </div>
 
                 {/* STANDALONE POOL DATA LEADERBOARD */}
-                <div className="overflow-x-auto border border-slate-100 rounded-xl dark:border-white/5">
+                <div className="overflow-x-auto border border-slate-100 rounded-xl dark:border-white/5 transition-colors duration-200">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/50 border-b border-slate-100 dark:bg-white/1 dark:border-white/5 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                      <tr className="bg-slate-50/50 border-b border-slate-100 dark:bg-white/[0.02] dark:border-white/5 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-200">
                         <th className="py-2.5 px-4 w-16">Rank</th>
                         <th className="py-2.5 px-4">Team</th>
                         <th className="py-2.5 px-4 text-center w-20">Played</th>
@@ -158,7 +157,7 @@ export const StandingsTable = () => {
                         <th className="py-2.5 px-4 text-center w-20">Diff</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-white/2">
+                    <tbody className="divide-y divide-slate-100 dark:divide-white/5 transition-colors duration-200">
                       {poolTeams.map((team, index) => {
                         const diff = team.points_for - team.points_against;
                         const losses = team.matches_played - team.wins;
@@ -169,8 +168,8 @@ export const StandingsTable = () => {
                         return (
                           <tr 
                             key={team.id} 
-                            className={`text-sm transition-colors hover:bg-slate-50/80 dark:hover:bg-white/1 ${
-                              qualifiesForPlayoffs ? 'bg-purple-50/40 dark:bg-purple-500/5' : ''
+                            className={`text-sm transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.02] ${
+                              qualifiesForPlayoffs ? 'bg-purple-50/40 dark:bg-purple-500/[0.03]' : ''
                             }`}
                           >
                             <td className="py-3 px-4 font-mono font-bold">
@@ -181,7 +180,7 @@ export const StandingsTable = () => {
                               </span>
                             </td>
                             <td className="py-3 px-4">
-                              <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                              <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2 transition-colors duration-200">
                                 {team.team_name}
                                 {qualifiesForPlayoffs && (
                                   <span className="text-[8px] font-mono font-bold bg-purple-100 text-purple-600 px-1 py-0.5 rounded uppercase tracking-wider dark:bg-purple-500/10">
@@ -189,14 +188,14 @@ export const StandingsTable = () => {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 transition-colors duration-200">
                                 {team.player1_name}{team.player2_name ? ` • ${team.player2_name}` : ''}
                               </div>
                             </td>
-                            <td className="py-3 px-4 text-center font-mono text-slate-600 dark:text-slate-400">{team.matches_played}</td>
-                            <td className="py-3 px-4 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">{team.wins}</td>
-                            <td className="py-3 px-4 text-center font-mono text-slate-400 dark:text-slate-500">{losses}</td>
-                            <td className={`py-3 px-4 text-center font-mono font-bold ${
+                            <td className="py-3 px-4 text-center font-mono text-slate-600 dark:text-slate-400 transition-colors duration-200">{team.matches_played}</td>
+                            <td className="py-3 px-4 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400 transition-colors duration-200">{team.wins}</td>
+                            <td className="py-3 px-4 text-center font-mono text-slate-400 dark:text-slate-500 transition-colors duration-200">{losses}</td>
+                            <td className={`py-3 px-4 text-center font-mono font-bold transition-colors duration-200 ${
                               diff > 0 ? 'text-purple-600 dark:text-purple-400' : diff < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'
                             }`}>
                               {diff > 0 ? `+${diff}` : diff}
