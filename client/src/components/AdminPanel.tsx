@@ -98,21 +98,28 @@ export const AdminPanel = () => {
   // 🛰️ DISPATCH LAYER: FETCH ACTIVE STAFF ACCOUNTS FROM DATABASE
   // =========================================================================
   useEffect(() => {
-    const fetchStaffReferees = async () => {
-      try {
-        setIsStaffLoading(true);
-        // Requests user context securely over authenticated route wrappers
-        const response = await axios.get<StaffProfile[]>(`${SOCKET_URL}/api/admin/staff`);
-        setStaffReferees(response.data || []);
-      } catch (error) {
-        console.error("Failed to query runtime staff registers:", error);
-      } finally {
-        setIsStaffLoading(false);
+  const fetchStaffReferees = async () => {
+    try {
+      setIsStaffLoading(true);
+      const response = await axios.get(`${SOCKET_URL}/api/admin/staff`);
+      
+      // 🛡️ DEFENSIVE GUARD: Ensure state is never polluted by string fallbacks or HTML pages
+      if (response.data && Array.isArray(response.data)) {
+        setStaffReferees(response.data);
+      } else {
+        console.warn("API resolved, but unexpected non-array format returned:", response.data);
+        setStaffReferees([]);
       }
-    };
+    } catch (error) {
+      console.error("Failed to query runtime staff registers:", error);
+      setStaffReferees([]);
+    } finally {
+      setIsStaffLoading(false);
+    }
+  };
 
-    fetchStaffReferees();
-  }, []);
+  fetchStaffReferees();
+}, []);
 
   const handleToggleAnnouncementMode = (mode: 'short' | 'detailed') => {
     setAnnouncementMode(mode);

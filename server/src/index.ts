@@ -297,6 +297,22 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
   }
 });
 
+app.get('/api/admin/staff', requireAuth(['ADMIN', 'STAFF']), async (_req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabase
+      .from('staff_profiles')
+      .select('id, username, display_name, role')
+      .order('display_name', { ascending: true });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.json(data || []);
+  } catch {
+    return res.status(500).json({ error: "Failed to extract staff directory data models." });
+  }
+});
+
 app.get('/api/admin/tournaments/:tournamentId/teams', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
