@@ -1,12 +1,12 @@
 // client/src/App.tsx
 import React, { useState, useEffect } from 'react';
 import axios, { type InternalAxiosRequestConfig } from 'axios';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlertStore } from './store/useAlertStore'; 
 import { RefereePortal } from './components/RefereePortal';
 import { ThemeToggle } from './components/ThemeToggle';
-import { Lock, CheckCircle2, AlertTriangle, XCircle, Menu, X, ChevronRight } from 'lucide-react';
+import { Lock, CheckCircle2, AlertTriangle, XCircle, Menu, X, ChevronRight, ShieldAlert } from 'lucide-react';
 
 /** =======================================================
  * DYNAMIC PAGES DISPATCH IMPORTS (Refactored Sub-Modules)
@@ -30,7 +30,8 @@ axios.defaults.withCredentials = true;
 // Global Axios Interceptors map security signatures over standalone machine execution paths
 axios.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = sessionStorage.getItem('altori_admin_token');
+    // 🛡️ Supports both the legacy administrative token cache and the unified network token key safely
+    const token = sessionStorage.getItem('altori_auth_token') || sessionStorage.getItem('altori_admin_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -39,6 +40,52 @@ axios.interceptors.request.use(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (error: any) => Promise.reject(error)
 );
+
+/** =======================================================
+ * 🛡️ CLIENT ROUTE GUARD: LOCKS OUT STAFF FROM ADMIN WORKSPACES
+ * ======================================================= */
+interface GuardProps {
+  children: React.ReactNode;
+}
+
+function AdminRouteGuard({ children }: GuardProps) {
+  const currentSessionRole = sessionStorage.getItem('altori_user_role')?.toUpperCase();
+  const hasToken = !!(sessionStorage.getItem('altori_auth_token') || sessionStorage.getItem('altori_admin_token'));
+
+  // If the user hasn't logged in at all, pass them directly down to the auth login page view natively
+  if (!hasToken) {
+    return <>{children}</>;
+  }
+
+  // Intercept staff accounts instantly and render an elegant UX warning screen
+  if (currentSessionRole === 'STAFF') {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center animate-in fade-in duration-200">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm dark:border-white/5 dark:bg-slate-900 text-center flex flex-col items-center">
+          <div className="h-14 w-14 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-500 dark:text-amber-400 mb-4">
+            <ShieldAlert className="h-7 w-7" />
+          </div>
+          <h2 className="text-base font-black font-mono uppercase tracking-wider text-slate-900 dark:text-white">
+            Administrative Access Denied
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-sm leading-relaxed">
+            Your profile is registered under the <span className="font-bold text-purple-600 dark:text-purple-400">STAFF / REFEREE</span> tier registry. Staff users are restricted from performing deployment actions or modifying core tournament structures.
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full justify-center font-mono text-xs font-bold uppercase tracking-wider">
+            <Link 
+              to="/" 
+              className="w-full sm:w-auto px-6 py-3 bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-xl hover:opacity-90 text-center transition-all duration-200"
+            >
+              Return Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
 
 /** =======================================================
  * MASTER CORE DASHBOARD PLATFORM VIEW LAYOUT ENGINE
@@ -50,7 +97,6 @@ function DashboardLayout() {
 
   // Auto-close mobile viewport drawer when navigation transition routes change
   useEffect(() => {
-    // 🛡️ Defer execution to a macro-task queue to eliminate synchronous cascading re-renders
     const deferMenuClose = setTimeout(() => {
       setIsMobileMenuOpen(false);
     }, 0);
@@ -79,11 +125,10 @@ function DashboardLayout() {
   return (
     <main className="min-h-screen pb-12 bg-slate-50 text-slate-900 dark:bg-brand-dark dark:text-white transition-colors duration-200 flex flex-col relative">
       
-      {/* GLOBAL HEADER: Optimized to maintain fixed-height boundaries across all screens */}
+      {/* GLOBAL HEADER */}
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50 dark:border-white/5 dark:bg-brand-dark/50 dark:backdrop-blur-md dark:shadow-none">
         <div className="max-w-7xl mx-auto h-16 md:h-20 flex items-center justify-between px-4 gap-4">
           
-          {/* BRAND LINK HUB WITH LOGO IMAGE AND BRAND TEXT */}
           <Link to="/" className="flex items-center gap-2 group hover:opacity-95 cursor-pointer select-none shrink-0">
             <img 
               src="/Altori_Park_Pickleball_Logo.svg" 
@@ -101,7 +146,6 @@ function DashboardLayout() {
             </h1>
           </Link>
 
-          {/* DESKTOP NAV SPECIFICATION LAYER (Hidden below md media queries) */}
           <nav className="hidden md:flex items-center gap-x-5 text-xs font-mono font-black uppercase tracking-wider">
             {navigationLinks.map((link) => {
               const isTargetActive = link.path === '/tournaments' 
@@ -127,11 +171,9 @@ function DashboardLayout() {
             </Link>
           </nav>
           
-          {/* RIGHT VIEW INTERACTIVE CONTROL BASE VECTOR */}
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
             <ThemeToggle />
             
-            {/* MOBILE INTERFACE TRIGGER ACTION OVERLAY BUTTON */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-all min-h-[40px] min-w-[40px] flex items-center justify-center focus:outline-none"
@@ -142,7 +184,7 @@ function DashboardLayout() {
           </div>
         </div>
 
-        {/* 📱 RESPONSIVE INTERACTIVE ANCHOR MENU CONSOLE DRAWER OVERLAY SHEET */}
+        {/* 📱 RESPONSIVE MENU DRAWER */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
@@ -184,7 +226,6 @@ function DashboardLayout() {
         </AnimatePresence>
       </header>
 
-      {/* BACKDROP BLUR SHADOW LAYER IF EXPANDED MOBILE MENU DRAWER IS ACTIVE */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 top-[64px] bg-black/40 backdrop-blur-xs z-30 md:hidden transition-all"
@@ -199,8 +240,9 @@ function DashboardLayout() {
           <Route path="/tournament/:tournamentId" element={<TournamentGateway />} />
           <Route path="/tournament/:tournamentId/live" element={<LiveTournamentDashboard />} />
           
-          <Route path="/admin" element={<AdminWorkspaceGateway />} />
-          <Route path="/admin/:tournamentId" element={<AdminWorkspaceGateway />} />
+          {/* 🛡️ SECURITY WRAPPER MATRIX DEPLOYMENT */}
+          <Route path="/admin" element={<AdminRouteGuard><AdminWorkspaceGateway /></AdminRouteGuard>} />
+          <Route path="/admin/:tournamentId" element={<AdminRouteGuard><AdminWorkspaceGateway /></AdminRouteGuard>} />
           
           <Route path="/about" element={<div className="max-w-7xl mx-auto px-4 mt-6"><UnderConstructionView /></div>} />
           <Route path="/schedule" element={<div className="max-w-7xl mx-auto px-4 mt-6"><UnderConstructionView /></div>} />
@@ -211,6 +253,9 @@ function DashboardLayout() {
           <Route path="/terms" element={<div className="max-w-7xl mx-auto px-4 mt-6"><TermsConditionsView /></div>} />
           <Route path="/cookies" element={<div className="max-w-7xl mx-auto px-4 mt-6"><CookiePolicyView /></div>} />
           <Route path="/report-issue" element={<div className="max-w-7xl mx-auto px-4 mt-6"><ReportIssueView /></div>} />
+          
+          {/* Catch-all safety redirection route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
 
@@ -250,6 +295,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/*" element={<DashboardLayout />} />
+        {/* The Remote Court Scorekeeper platform stays open outside layout view frames */}
         <Route path="/referee/:matchId" element={<RefereePortal />} />
       </Routes>
     </BrowserRouter>

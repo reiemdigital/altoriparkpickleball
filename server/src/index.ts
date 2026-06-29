@@ -98,11 +98,11 @@ interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     username: string;
-    role: 'Admin' | 'Staff';
+    role: 'ADMIN' | 'STAFF'; // 🛡️ Standardized Uppercase Token Matrix
   };
 }
 
-const requireAuth = (roles?: ('Admin' | 'Staff')[]) => {
+const requireAuth = (roles?: ('ADMIN' | 'STAFF')[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     let token = req.cookies?.token;
 
@@ -116,10 +116,18 @@ const requireAuth = (roles?: ('Admin' | 'Staff')[]) => {
     }
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: 'Admin' | 'Staff' };
-      req.user = decoded;
+      const decoded = jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: string };
+      
+      // Defensive normalization to force uppercase parsing safely
+      const normalizedUser = {
+        id: decoded.id,
+        username: decoded.username,
+        role: decoded.role.toUpperCase() as 'ADMIN' | 'STAFF'
+      };
 
-      if (roles && !roles.includes(decoded.role)) {
+      req.user = normalizedUser;
+
+      if (roles && !roles.includes(normalizedUser.role)) {
         return res.status(403).json({ error: 'Forbidden. You do not have clearance for this action.' });
       }
 
@@ -211,8 +219,11 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid clearance credentials.' });
     }
 
+    // Force normalized upper token into payload signatures
+    const standardizedRole = user.role.toUpperCase();
+
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role }, 
+      { id: user.id, username: user.username, role: standardizedRole }, 
       JWT_SECRET, 
       { expiresIn: '8h' }
     );
@@ -224,7 +235,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       maxAge: 8 * 60 * 60 * 1000 
     });
 
-    return res.json({ success: true, role: user.role, token });
+    return res.json({ success: true, role: standardizedRole, token });
   } catch {
     return res.status(500).json({ error: 'Authentication internal handler engine crash.' });
   }
@@ -259,7 +270,7 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
   if (!req.user) return res.status(401).json({ error: 'Unauthorized profile mapping.' });
 
   try {
-    if (req.user.role === 'Admin') {
+    if (req.user.role === 'ADMIN') {
       const { data, error } = await supabase
         .from('tournaments')
         .select('*')
@@ -286,8 +297,7 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
   }
 });
 
-// ⚡ ADDED: AUTHENTICATED RETRIEVAL ENDPOINT FOR ADMIN QUEUE ENTRIES
-app.get('/api/admin/tournaments/:tournamentId/teams', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+app.get('/api/admin/tournaments/:tournamentId/teams', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
     const { data, error } = await supabase
@@ -304,8 +314,7 @@ app.get('/api/admin/tournaments/:tournamentId/teams', requireAuth(['Admin', 'Sta
   }
 });
 
-// SECURE PAYMENT VERIFICATION ACTION ENDPOINT
-app.put('/api/admin/teams/:id/verify-payment', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+app.put('/api/admin/teams/:id/verify-payment', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -320,7 +329,6 @@ app.put('/api/admin/teams/:id/verify-payment', requireAuth(['Admin', 'Staff']), 
       return res.status(400).json({ error: "Failed to confirm participant payment metadata." });
     }
 
-    // 🔥 DYNAMIC TELEMETRY SYNC: Broadcasts updates to recalculate arrays live on every open dashboard
     io.to(`tournament:${updatedTeam.tournament_id}`).emit('registration-updated');
     io.to(`tournament:${updatedTeam.tournament_id}`).emit('standings-refresh');
     
@@ -335,7 +343,6 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
   const { tournamentId } = req.params;
 
   try {
-    // 🛡️ SERVER-SIDE IDENTITY DETECTION
     let serverVerifiedAdmin = false;
     try {
       let token = req.cookies?.token;
@@ -346,7 +353,7 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
       
       if (token) {
         const decoded = jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: string };
-        if (decoded && decoded.role === 'Admin') {
+        if (decoded && decoded.role.toUpperCase() === 'ADMIN') {
           serverVerifiedAdmin = true;
         }
       }
@@ -411,7 +418,7 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
   }
 });
 
-app.post('/api/tournaments', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.post('/api/tournaments', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { title, start_date, end_date, venue_name, court_count, guidelines_url } = req.body;
 
   if (!title || !start_date || !end_date || !venue_name) {
@@ -445,7 +452,7 @@ app.post('/api/tournaments', requireAuth(['Admin']), async (req: Request, res: R
   }
 });
 
-app.put('/api/tournaments/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.put('/api/tournaments/:id', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { title, start_date, end_date, venue_name, court_count, status, guidelines_url } = req.body;
 
@@ -476,7 +483,7 @@ app.put('/api/tournaments/:id', requireAuth(['Admin']), async (req: Request, res
   }
 });
 
-app.delete('/api/tournaments/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.delete('/api/tournaments/:id', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -495,7 +502,7 @@ app.delete('/api/tournaments/:id', requireAuth(['Admin']), async (req: Request, 
   }
 });
 
-app.post('/api/tournaments/:id/seed-categories', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.post('/api/tournaments/:id/seed-categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id: tournamentId } = req.params;
   try {
     for (const cat of CATEGORIES) {
@@ -527,7 +534,7 @@ app.post('/api/tournaments/:id/seed-categories', requireAuth(['Admin']), async (
   }
 });
 
-app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.post('/api/tournaments/:tournamentId/categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   const { 
     category_name, gender_division, category_type, entry_fee, max_slots, 
@@ -567,7 +574,7 @@ app.post('/api/tournaments/:tournamentId/categories', requireAuth(['Admin']), as
   }
 });
 
-app.delete('/api/categories/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.delete('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -636,7 +643,7 @@ app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Resp
   }
 });
 
-app.put('/api/matches/:id/start', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+app.put('/api/matches/:id/start', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { courtId, refereeName } = req.body;
   const targetCourtParsed = parseInt(courtId, 10);
@@ -713,7 +720,7 @@ app.put('/api/matches/:id/start', requireAuth(['Admin', 'Staff']), async (req: R
   }
 });
 
-app.put('/api/matches/:id/cancel', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.put('/api/matches/:id/cancel', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const { data: match } = await supabase.from('matches').select('tournament_id').eq('id', id).single();
@@ -743,7 +750,7 @@ app.put('/api/matches/:id/cancel', requireAuth(['Admin']), async (req: Request, 
   }
 });
 
-app.put('/api/matches/:id/default', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.put('/api/matches/:id/default', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { absentTeamNum } = req.body; 
 
@@ -949,7 +956,7 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
       .from('teams')
       .select('*')
       .eq('tournament_id', tournamentId)
-      .eq('registration_status', 'CONFIRMED'); // 🛡️ Fix: Exclude pending uploads from live roster pools
+      .eq('registration_status', 'CONFIRMED'); 
 
     if (error) {
       return res.status(400).json({ error: error.message });
@@ -991,8 +998,9 @@ app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, r
  * REGISTRATION, POOLS, & AUTOMATED PLAYOFF GENERATORS
  * ======================================================= */
 
-app.post('/api/brackets/generate', requireAuth(['Admin']), async (req: Request, res: Response) => {
-  const { tournamentId, categoryId } = req.body;
+// ⚡ REFACTOR UPGRADE: High-performance dual-method endpoint resolving manual vs automated trees
+app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+  const { tournamentId, categoryId, seedingMethod, customSeeds } = req.body;
   if (!tournamentId || !categoryId) return res.status(400).json({ error: "Required mapping variables missing." });
 
   try {
@@ -1008,15 +1016,38 @@ app.post('/api/brackets/generate', requireAuth(['Admin']), async (req: Request, 
       return res.status(400).json({ error: "Playoff brackets have already been generated for this tier." });
     }
 
-    const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId).eq('registration_status', 'CONFIRMED');
-    if (!teams || teams.length < 4) {
-      return res.status(400).json({ error: "Insufficient team datasets. Minimum 4 contenders required." });
+    let team1_SF1_id: string | null = null;
+    let team2_SF1_id: string | null = null;
+    let team1_SF2_id: string | null = null;
+    let team2_SF2_id: string | null = null;
+
+    if (seedingMethod === 'MANUAL' && customSeeds) {
+      // Direct variable structural mapping parsing out values passed straight from our DragGrid view
+      team1_SF1_id = customSeeds.SF1_T1_id;
+      team2_SF1_id = customSeeds.SF1_T2_id;
+      team1_SF2_id = customSeeds.SF2_T1_id;
+      team2_SF2_id = customSeeds.SF2_T2_id;
+    } else {
+      // AUTOMATIC CALCULATION MODEL FALLBACK
+      const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId).eq('registration_status', 'CONFIRMED');
+      if (!teams || teams.length < 4) {
+        return res.status(400).json({ error: "Insufficient team datasets. Minimum 4 contenders required." });
+      }
+
+      const qualifyingWinners = (teams as unknown as Team[]).sort((a: Team, b: Team) => {
+        if (b.wins !== a.wins) return (b.wins || 0) - (a.wins || 0);
+        return ((b.points_for || 0) - (b.points_against || 0)) - ((a.points_for || 0) - (a.points_against || 0));
+      });
+
+      team1_SF1_id = qualifyingWinners[0].id;
+      team2_SF1_id = qualifyingWinners[3].id;
+      team1_SF2_id = qualifyingWinners[1].id;
+      team2_SF2_id = qualifyingWinners[2].id;
     }
 
-    const qualifyingWinners = (teams as unknown as Team[]).sort((a: Team, b: Team) => {
-      if (b.wins !== a.wins) return (b.wins || 0) - (a.wins || 0);
-      return ((b.points_for || 0) - (b.points_against || 0)) - ((a.points_for || 0) - (a.points_against || 0));
-    });
+    if (!team1_SF1_id || !team2_SF1_id || !team1_SF2_id || !team2_SF2_id) {
+      return res.status(400).json({ error: "Seeding Aborted: Ensure all 4 slot destinations contain non-null entries." });
+    }
 
     const { data: sf1, error: e1 } = await supabase.from('matches').insert({
       tournament_id: tournamentId,
@@ -1024,8 +1055,8 @@ app.post('/api/brackets/generate', requireAuth(['Admin']), async (req: Request, 
       match_type: 'ELIMINATION',
       bracket_position: 'SF1',
       status: 'PENDING',
-      team1_id: qualifyingWinners[0].id,
-      team2_id: qualifyingWinners[3].id
+      team1_id: team1_SF1_id,
+      team2_id: team2_SF1_id
     }).select().single();
 
     const { data: sf2, error: e2 } = await supabase.from('matches').insert({
@@ -1034,15 +1065,16 @@ app.post('/api/brackets/generate', requireAuth(['Admin']), async (req: Request, 
       match_type: 'ELIMINATION',
       bracket_position: 'SF2',
       status: 'PENDING',
-      team1_id: qualifyingWinners[1].id,
-      team2_id: qualifyingWinners[2].id
+      team1_id: team1_SF2_id,
+      team2_id: team2_SF2_id
     }).select().single();
 
     if (e1 || e2) throw (e1 || e2);
 
     io.to(`tournament:${tournamentId}`).emit('standings-refresh'); 
     return res.json({ success: true, brackets: [sf1, sf2] });
-  } catch {
+  } catch (err) {
+    console.error("Playoff assignment pipe error:", err);
     return res.status(500).json({ error: "Internal elimination tree computation exception" });
   }
 });
@@ -1062,7 +1094,7 @@ app.get('/api/tournaments/:tournamentId/categories', async (req: Request, res: R
   }
 });
 
-app.put('/api/categories/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.put('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { maxSlots } = req.body;
   try {
@@ -1080,7 +1112,7 @@ app.put('/api/categories/:id', requireAuth(['Admin']), async (req: Request, res:
   }
 });
 
-app.put('/api/config/category-settings', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.put('/api/config/category-settings', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId, maxSlots, groupCount } = req.body;
   const parsedMaxSlots = parseInt(maxSlots, 10);
   
@@ -1184,7 +1216,7 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
   }
 });
 
-app.put('/api/teams/:id/group', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+app.put('/api/teams/:id/group', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { groupId } = req.body;
   try {
@@ -1203,7 +1235,7 @@ app.put('/api/teams/:id/group', requireAuth(['Admin', 'Staff']), async (req: Req
   }
 });
 
-app.post('/api/groups/auto-allocate', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.post('/api/groups/auto-allocate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId, groupCount } = req.body;
   try {
     const { data: teams, error } = await supabase
@@ -1231,7 +1263,7 @@ app.post('/api/groups/auto-allocate', requireAuth(['Admin']), async (req: Reques
   }
 });
 
-app.post('/api/groups/generate', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.post('/api/groups/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId } = req.body;
   try {
     const { data: teams } = await supabase
@@ -1293,7 +1325,7 @@ app.post('/api/groups/generate', requireAuth(['Admin']), async (req: Request, re
   }
 });
 
-app.put('/api/teams/:id', requireAuth(['Admin', 'Staff']), async (req: Request, res: Response) => {
+app.put('/api/teams/:id', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { name } = req.body;
   try {
@@ -1312,7 +1344,7 @@ app.put('/api/teams/:id', requireAuth(['Admin', 'Staff']), async (req: Request, 
   }
 });
 
-app.delete('/api/teams/:id', requireAuth(['Admin']), async (req: Request, res: Response) => {
+app.delete('/api/teams/:id', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const { data: team } = await supabase.from('teams').select('tournament_id').eq('id', id).single();
