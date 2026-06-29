@@ -72,6 +72,11 @@ export const RefereePortal = () => {
   const isTokenVerified = currentMatch && currentMatch.status !== 'FINISHED' ? localTokenVerified : false;
   const matchPin = currentMatch?.pinCode || currentMatch?.pin_code;
 
+  // 🛠️ DEFENSIVE ARCHITECTURAL APPROACH: Safe variable route target computations
+  const exitTargetRoute = currentMatch?.tournament_id 
+    ? `/admin/${currentMatch.tournament_id}` 
+    : '/admin';
+
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
     if (currentMatch && matchPin && pinInput.trim() === matchPin.toString().trim()) {
@@ -106,11 +111,16 @@ export const RefereePortal = () => {
     if (!currentMatch || !isTokenVerified) return;
     if (!window.confirm("🚨 LOCK SCORES? Are you sure this match is complete? Final scores will be locked permanently into tournament standings.")) return;
 
+    // Cache target route before unmounting schemas inside store modifications
+    const targetedRedirect = exitTargetRoute;
+
     try {
       await axios.put(`${SOCKET_URL}/api/matches/${currentMatch.id}/finish`);
       localStorage.removeItem(`auth_token_match_${matchId}`); 
       setLocalTokenVerified(false); 
-      navigate('/');
+      
+      // 🚀 Fix approach: Routes cleanly back into the designated console workspace
+      navigate(targetedRedirect);
     } catch (error: unknown) {
       console.error("Failed to execute final lifecycle check:", error);
       if (axios.isAxiosError(error)) {
@@ -129,7 +139,14 @@ export const RefereePortal = () => {
         </div>
         <p className="text-sm font-mono font-bold text-slate-200 mb-2 uppercase tracking-wide">Session Terminated</p>
         <p className="text-xs text-slate-500 max-w-xs mb-6">Match session not found or has already been finalized by tournament controllers.</p>
-        <button onClick={() => navigate('/')} className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider uppercase text-slate-300 active:scale-95 transition-all">Return to Hub</button>
+        
+        {/* 🚀 Fix approach: Modified to route back to general administrative gateway safely */}
+        <button 
+          onClick={() => navigate('/admin')} 
+          className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider uppercase text-slate-300 active:scale-95 transition-all cursor-pointer"
+        >
+          Return to Console
+        </button>
       </div>
     );
   }
@@ -171,7 +188,11 @@ export const RefereePortal = () => {
             </button>
           </form>
           
-          <button onClick={() => navigate('/')} className="text-[10px] font-mono text-slate-500 hover:text-slate-400 uppercase tracking-widest mt-6 block mx-auto transition-colors">
+          {/* 🚀 Fix approach: Redirects back to the originating active console template link */}
+          <button 
+            onClick={() => navigate(exitTargetRoute)} 
+            className="text-[10px] font-mono text-slate-500 hover:text-slate-400 uppercase tracking-widest mt-6 block mx-auto transition-colors cursor-pointer bg-transparent border-none focus:outline-none"
+          >
             Exit Terminal
           </button>
         </div>
@@ -193,7 +214,11 @@ export const RefereePortal = () => {
     <div className="min-h-screen bg-slate-950 text-white flex flex-col selection:bg-brand-accent/20 select-none touch-manipulation">
       {/* HEADER CONTROL BAR */}
       <header className="px-4 py-3.5 border-b border-white/5 bg-slate-900/20 backdrop-blur-md flex justify-between items-center sticky top-0 z-50">
-        <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 active:text-white transition-colors">
+        {/* 🚀 Fix approach: Modifies the top bar back click to safely return to active director views */}
+        <button 
+          onClick={() => navigate(exitTargetRoute)} 
+          className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 active:text-white transition-colors cursor-pointer bg-transparent border-none focus:outline-none"
+        >
           <ChevronLeft className="h-4 w-4 stroke-[3]" /> LEAVE
         </button>
         <div className="flex items-center gap-2">

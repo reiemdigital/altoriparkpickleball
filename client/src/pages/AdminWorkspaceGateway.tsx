@@ -74,7 +74,8 @@ export function AdminWorkspaceGateway() {
   const [editCoverUrl, setEditCoverUrl] = useState(''); 
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const activeCachedRole = sessionStorage.getItem('altori_admin_role') || 'Staff';
+  // 🛡️ NORMALIZE CASE MATCHING: Ensure token values match our uppercase database convention safely
+  const activeCachedRole = (sessionStorage.getItem('altori_admin_role') || 'STAFF').toUpperCase();
 
   const fetchAssignedData = useCallback(async () => {
     setLoadingAssigned(true);
@@ -201,7 +202,8 @@ export function AdminWorkspaceGateway() {
         setIsAuthenticated(true);
         setLoginPassword('');
         sessionStorage.setItem('altori_admin_auth', 'true');
-        sessionStorage.setItem('altori_admin_role', response.data.role);
+        // Cache uppercase standardized role configuration from login responses natively
+        sessionStorage.setItem('altori_admin_role', response.data.role.toUpperCase());
         sessionStorage.setItem('altori_admin_token', response.data.token);
       }
     } catch { 
@@ -224,7 +226,7 @@ export function AdminWorkspaceGateway() {
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto p-8 bg-white border border-slate-200 rounded-3xl shadow-sm dark:bg-slate-900/40 dark:border-white/5 mt-12 text-left animate-in fade-in duration-200 font-sans">
+      <div className="max-w-md mx-auto p-8 bg-white border border-slate-200 p-8 rounded-3xl shadow-sm dark:bg-slate-900/40 dark:border-white/5 mt-12 text-left animate-in fade-in duration-200 font-sans">
         <div className="text-center mb-8">
           <div className="h-12 w-12 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4 dark:bg-purple-500/10"><Lock className="h-6 w-6 text-[#64317C]" /></div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">Secure Terminal Access</h3>
@@ -272,7 +274,7 @@ export function AdminWorkspaceGateway() {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            {activeCachedRole === 'Admin' && (
+            {activeCachedRole === 'ADMIN' && (
               <button 
                 onClick={() => setShowCreateModal(true)}
                 className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 text-xs font-mono font-bold bg-[#088505] text-white px-4 py-2 rounded-xl hover:bg-opacity-90 transition-all shadow-2xs cursor-pointer"
@@ -309,7 +311,7 @@ export function AdminWorkspaceGateway() {
                       ● {t.status}
                     </span>
                     
-                    {activeCachedRole === 'Admin' && (
+                    {activeCachedRole === 'ADMIN' && (
                       <button
                         onClick={() => startEditingContext(t)}
                         className="text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"

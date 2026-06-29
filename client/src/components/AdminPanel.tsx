@@ -98,28 +98,27 @@ export const AdminPanel = () => {
   // 🛰️ DISPATCH LAYER: FETCH ACTIVE STAFF ACCOUNTS FROM DATABASE
   // =========================================================================
   useEffect(() => {
-  const fetchStaffReferees = async () => {
-    try {
-      setIsStaffLoading(true);
-      const response = await axios.get(`${SOCKET_URL}/api/admin/staff`);
-      
-      // 🛡️ DEFENSIVE GUARD: Ensure state is never polluted by string fallbacks or HTML pages
-      if (response.data && Array.isArray(response.data)) {
-        setStaffReferees(response.data);
-      } else {
-        console.warn("API resolved, but unexpected non-array format returned:", response.data);
+    const fetchStaffReferees = async () => {
+      try {
+        setIsStaffLoading(true);
+        const response = await axios.get(`${SOCKET_URL}/api/admin/staff`);
+        
+        if (response.data && Array.isArray(response.data)) {
+          setStaffReferees(response.data);
+        } else {
+          console.warn("API resolved, but unexpected non-array format returned:", response.data);
+          setStaffReferees([]);
+        }
+      } catch (error) {
+        console.error("Failed to query runtime staff registers:", error);
         setStaffReferees([]);
+      } finally {
+        setIsStaffLoading(false);
       }
-    } catch (error) {
-      console.error("Failed to query runtime staff registers:", error);
-      setStaffReferees([]);
-    } finally {
-      setIsStaffLoading(false);
-    }
-  };
+    };
 
-  fetchStaffReferees();
-}, []);
+    fetchStaffReferees();
+  }, []);
 
   const handleToggleAnnouncementMode = (mode: 'short' | 'detailed') => {
     setAnnouncementMode(mode);
@@ -170,13 +169,9 @@ export const AdminPanel = () => {
     if (!targetMatch) return;
 
     const availableCourts = Array.from({ length: totalVenueCourts }, (_, i) => i + 1).filter(c => !occupiedCourts.has(c));
-    
-    // Filter out dynamic referee instances matching current string fields
     const availableReferees = staffReferees.filter(r => !occupiedReferees.has(r.display_name));
 
     const assignedCourt = courtAssignments[matchId] || (availableCourts[0] || 1);
-    
-    // Resolves fallback fields based on live fetched database states cleanly
     const fallbackRefereeName = staffReferees[0]?.display_name || "Official Referee";
     const assignedReferee = refereeAssignments[matchId] || (availableReferees[0]?.display_name || fallbackRefereeName);
 
@@ -242,22 +237,23 @@ export const AdminPanel = () => {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start animate-in fade-in duration-200">
         
         {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS SECURITY PIN TOKENS */}
-        <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
+        <div className="p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
           <h2 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 shrink-0">
             <ShieldCheck className="h-4 w-4" /> Active Court Access Security Tokens
           </h2>
 
+          {/* 🛠️ UI/UX MOBILE REFACTOR: Swapped hidden behavior for an adaptive responsive row layout block */}
           {currentlyLiveMatches.length > 0 && (
-            <div className="hidden md:flex flex-wrap items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-200/60 rounded-xl dark:bg-slate-950 dark:border-white/5 animate-in fade-in duration-200 shrink-0">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-4 p-3 bg-slate-50 border border-slate-200/60 rounded-xl dark:bg-slate-950 dark:border-white/5 animate-in fade-in duration-200 shrink-0">
               <span className="text-[10px] font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 shrink-0">
                 <Smartphone className="h-3 w-3 text-purple-500" /> Active Desktop Remotes:
               </span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
                 {currentlyLiveMatches.map((m) => (
                   <Link 
                     key={m.id} 
                     to={`/referee/${m.id}`} 
-                    className="bg-white border border-slate-200 text-slate-800 text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg hover:border-[#64317C] dark:bg-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-purple-400 transition-colors shadow-3xs"
+                    className="bg-white border border-slate-200 text-slate-800 text-[11px] font-mono font-bold px-2.5 py-1.5 sm:py-1 rounded-lg hover:border-[#64317C] dark:bg-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-purple-400 transition-colors shadow-3xs flex-1 sm:flex-none text-center"
                   >
                     Court 0{m.court_id} ↗
                   </Link>
@@ -302,26 +298,28 @@ export const AdminPanel = () => {
         </div>
 
         {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL */}
-        <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
+        <div className="p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
               Director's Command Console
             </h2>
             
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl dark:bg-slate-950 border dark:border-white/5 shadow-inner">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl dark:bg-slate-950 border dark:border-white/5 shadow-inner justify-between sm:justify-start">
               <span className="text-[9px] font-mono font-black text-slate-400 px-2 uppercase tracking-wide flex items-center gap-1"><Settings className="h-2.5 w-2.5 text-purple-500" /> Audio:</span>
-              <button
-                onClick={() => handleToggleAnnouncementMode('short')}
-                className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all cursor-pointer ${announcementMode === 'short' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-              >
-                Simple
-              </button>
-              <button
-                onClick={() => handleToggleAnnouncementMode('detailed')}
-                className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all cursor-pointer ${announcementMode === 'detailed' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-              >
-                Detailed
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleToggleAnnouncementMode('short')}
+                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all cursor-pointer ${announcementMode === 'short' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                >
+                  Simple
+                </button>
+                <button
+                  onClick={() => handleToggleAnnouncementMode('detailed')}
+                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all cursor-pointer ${announcementMode === 'detailed' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                >
+                  Detailed
+                </button>
+              </div>
             </div>
           </div>
 
@@ -360,7 +358,7 @@ export const AdminPanel = () => {
                           : 'bg-slate-50 border-slate-100 dark:bg-slate-900 dark:border-white/5'
                       }`}
                     >
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 w-full">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">Match Queue</span>
                           {isBlocked && (
@@ -387,34 +385,34 @@ export const AdminPanel = () => {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+                      {/* 🛠️ UI/UX MOBILE REFACTOR: Form drop-downs utilize full-width grids on phones to maximize thumb tap targets */}
+                      <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto justify-end shrink-0">
                         
                         <select
-  value={currentSelectedReferee}
-  onChange={(e) => handleRefereeChange(match.id, e.target.value)}
-  disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0}
-  className="bg-white text-slate-800 text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left max-w-40 truncate"
->
-  {staffReferees.length === 0 ? (
-    <option value="" disabled>⚠️ No registered staff found</option>
-  ) : availableReferees.length === 0 ? (
-    <option value="" disabled>⚠️ All Refs Deployed</option>
-  ) : (
-    availableReferees.map((ref) => {
-      // 🛡️ Safe property fallback if display_name is null/empty in the database table row
-      const visualName = ref.display_name || ref.username || "Official Staff";
-      return (
-        <option key={ref.id} value={visualName}>{visualName}</option>
-      );
-    })
-  )}
-</select>
+                          value={currentSelectedReferee}
+                          onChange={(e) => handleRefereeChange(match.id, e.target.value)}
+                          disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0}
+                          className="bg-white text-slate-800 text-xs px-2.5 py-2.5 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto sm:max-w-40 truncate"
+                        >
+                          {staffReferees.length === 0 ? (
+                            <option value="" disabled>⚠️ No registered staff found</option>
+                          ) : availableReferees.length === 0 ? (
+                            <option value="" disabled>⚠️ All Refs Deployed</option>
+                          ) : (
+                            availableReferees.map((ref) => {
+                              const visualName = ref.display_name || ref.username || "Official Staff";
+                              return (
+                                <option key={ref.id} value={visualName}>{visualName}</option>
+                              );
+                            })
+                          )}
+                        </select>
 
                         <select 
                           value={currentSelectedCourt} 
                           onChange={(e) => handleCourtChange(match.id, Number(e.target.value))}
                           disabled={isBlocked || availableCourts.length === 0}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left"
+                          className="bg-white text-slate-800 text-xs px-2.5 py-2.5 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto"
                         >
                           {availableCourts.length === 0 ? (
                             <option value={0} disabled>⚠️ All Courts Busy</option>
@@ -428,7 +426,7 @@ export const AdminPanel = () => {
                         <button 
                           onClick={() => startMatch(match.id)}
                           disabled={isBlocked || isResourceExhausted}
-                          className={`text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm ${
+                          className={`text-xs font-bold px-4 py-3 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto ${
                             isBlocked || isResourceExhausted
                               ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600 shadow-none'
                               : 'bg-purple-600 text-white hover:bg-opacity-90 active:scale-95 cursor-pointer'
