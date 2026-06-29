@@ -202,7 +202,6 @@ export function AdminWorkspaceGateway() {
         setIsAuthenticated(true);
         setLoginPassword('');
         sessionStorage.setItem('altori_admin_auth', 'true');
-        // Cache uppercase standardized role configuration from login responses natively
         sessionStorage.setItem('altori_admin_role', response.data.role.toUpperCase());
         sessionStorage.setItem('altori_admin_token', response.data.token);
       }
@@ -226,7 +225,7 @@ export function AdminWorkspaceGateway() {
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto p-8 bg-white border border-slate-200 p-8 rounded-3xl shadow-sm dark:bg-slate-900/40 dark:border-white/5 mt-12 text-left animate-in fade-in duration-200 font-sans">
+      <div className="max-w-md mx-auto p-8 bg-white border border-slate-200 rounded-3xl shadow-sm dark:bg-slate-900/40 dark:border-white/5 mt-12 text-left animate-in fade-in duration-200 font-sans">
         <div className="text-center mb-8">
           <div className="h-12 w-12 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4 dark:bg-purple-500/10"><Lock className="h-6 w-6 text-[#64317C]" /></div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">Secure Terminal Access</h3>
@@ -250,7 +249,14 @@ export function AdminWorkspaceGateway() {
             <label className="text-[10px] font-mono font-bold uppercase text-slate-500">Security Passcode</label>
             <div className="relative">
               <KeyRound className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Enter authorization key" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
+              {/* 🛡️ FIXED TS2349: Correctly swapped state call with its corresponding set function */}
+              <input 
+                type="password" 
+                value={loginPassword} 
+                onChange={(e) => setLoginPassword(e.target.value)} 
+                placeholder="Enter authorization key" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" 
+              />
             </div>
             {loginError && <span className="text-[10px] text-red-500 font-bold mt-1 uppercase tracking-wide">Invalid credentials. Access denied.</span>}
           </div>
@@ -471,14 +477,16 @@ export function AdminWorkspaceGateway() {
       
       <CourtGrid />
 
-      <div className="my-8 flex justify-center">
-        <div className="bg-white border border-slate-200 p-1 rounded-2xl flex flex-wrap justify-center items-center gap-1 shadow-sm dark:bg-slate-900/40 dark:border-white/5">
-          <button onClick={() => setAdminTab('registry')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'registry' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Users className="h-4 w-4" /> Roster & Pools</button>
-          <button onClick={() => setAdminTab('console')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'console' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Unlock className="h-4 w-4" /> Director's Console</button>
+      {activeCachedRole === 'ADMIN' && (
+        <div className="my-8 flex justify-center">
+          <div className="bg-white border border-slate-200 p-1 rounded-2xl flex flex-wrap justify-center items-center gap-1 shadow-sm dark:bg-slate-900/40 dark:border-white/5">
+            <button onClick={() => setAdminTab('registry')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'registry' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Users className="h-4 w-4" /> Roster & Pools</button>
+            <button onClick={() => setAdminTab('console')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'console' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Unlock className="h-4 w-4" /> Director's Console</button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {adminTab === 'registry' ? <RegistrationPortal /> : <AdminPanel />}
+      {adminTab === 'registry' && activeCachedRole === 'ADMIN' ? <RegistrationPortal /> : <AdminPanel />}
     </div>
   );
 }

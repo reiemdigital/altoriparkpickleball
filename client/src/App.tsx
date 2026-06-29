@@ -30,7 +30,6 @@ axios.defaults.withCredentials = true;
 // Global Axios Interceptors map security signatures over standalone machine execution paths
 axios.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 🛡️ Supports both the legacy administrative token cache and the unified network token key safely
     const token = sessionStorage.getItem('altori_auth_token') || sessionStorage.getItem('altori_admin_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -42,14 +41,15 @@ axios.interceptors.request.use(
 );
 
 /** =======================================================
- * 🛡️ CLIENT ROUTE GUARD: LOCKS OUT STAFF FROM ADMIN WORKSPACES
+ * 🛡️ CLIENT ROUTE GUARD: ALLOWS STAFF ACCESS TO WORKSPACES
  * ======================================================= */
 interface GuardProps {
   children: React.ReactNode;
 }
 
 function AdminRouteGuard({ children }: GuardProps) {
-  const currentSessionRole = sessionStorage.getItem('altori_user_role')?.toUpperCase();
+  // 🛡️ Fallback verification checks both administrative and standard session roles safely
+  const currentSessionRole = (sessionStorage.getItem('altori_admin_role') || sessionStorage.getItem('altori_user_role'))?.toUpperCase();
   const hasToken = !!(sessionStorage.getItem('altori_auth_token') || sessionStorage.getItem('altori_admin_token'));
 
   // If the user hasn't logged in at all, pass them directly down to the auth login page view natively
@@ -57,8 +57,9 @@ function AdminRouteGuard({ children }: GuardProps) {
     return <>{children}</>;
   }
 
-  // Intercept staff accounts instantly and render an elegant UX warning screen
-  if (currentSessionRole === 'STAFF') {
+  // 🚀 STAFF USERS ARE NOW GRANTED CLEARANCE TO ACCESS THE DASHBOARD MONITORING SYSTEM
+  // Only completely unknown or invalid security profile signatures get rejected here
+  if (currentSessionRole && currentSessionRole !== 'ADMIN' && currentSessionRole !== 'STAFF') {
     return (
       <div className="max-w-xl mx-auto px-4 py-16 text-center animate-in fade-in duration-200">
         <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm dark:border-white/5 dark:bg-slate-900 text-center flex flex-col items-center">
@@ -69,7 +70,7 @@ function AdminRouteGuard({ children }: GuardProps) {
             Administrative Access Denied
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-sm leading-relaxed">
-            Your profile is registered under the <span className="font-bold text-purple-600 dark:text-purple-400">STAFF / REFEREE</span> tier registry. Staff users are restricted from performing deployment actions or modifying core tournament structures.
+            Your profile does not possess valid credentials or clearance flags to load this internal dashboard terminal matrix.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full justify-center font-mono text-xs font-bold uppercase tracking-wider">
             <Link 
@@ -95,7 +96,6 @@ function DashboardLayout() {
   const { isOpen, title, message, type, onConfirm, closeAlert } = useAlertStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Auto-close mobile viewport drawer when navigation transition routes change
   useEffect(() => {
     const deferMenuClose = setTimeout(() => {
       setIsMobileMenuOpen(false);
@@ -104,7 +104,6 @@ function DashboardLayout() {
     return () => clearTimeout(deferMenuClose);
   }, [location.pathname]);
 
-  // Prevent double-scrollbar viewport layout shifting when mobile overlay mask is active
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -295,7 +294,6 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/*" element={<DashboardLayout />} />
-        {/* The Remote Court Scorekeeper platform stays open outside layout view frames */}
         <Route path="/referee/:matchId" element={<RefereePortal />} />
       </Routes>
     </BrowserRouter>

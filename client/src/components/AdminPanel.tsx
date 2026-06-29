@@ -84,6 +84,10 @@ export const AdminPanel = () => {
   const [staffReferees, setStaffReferees] = useState<StaffProfile[]>([]);
   const [isStaffLoading, setIsStaffLoading] = useState<boolean>(true);
 
+  // 🛡️ GRANULAR AUTHORIZATION LAYER DEFINITIONS
+  const activeCachedRole = (sessionStorage.getItem('altori_admin_role') || sessionStorage.getItem('altori_user_role') || 'STAFF').toUpperCase();
+  const isStaff = activeCachedRole === 'STAFF';
+
   // Command Console Form Tracking States
   const [courtAssignments, setCourtAssignments] = useState<Record<string, number>>({});
   const [refereeAssignments, setRefereeAssignments] = useState<Record<string, string>>({});
@@ -121,6 +125,7 @@ export const AdminPanel = () => {
   }, []);
 
   const handleToggleAnnouncementMode = (mode: 'short' | 'detailed') => {
+    if (isStaff) return; // Block staff action triggers natively
     setAnnouncementMode(mode);
     localStorage.setItem('tournament_announcement_mode', mode);
   };
@@ -165,6 +170,7 @@ export const AdminPanel = () => {
   };
 
   const startMatch = async (matchId: string) => {
+    if (isStaff) return; // Fail-silent guard rule wrapper
     const targetMatch = matches.find(m => m.id === matchId);
     if (!targetMatch) return;
 
@@ -230,7 +236,7 @@ export const AdminPanel = () => {
       <div className="flex items-center gap-2 px-1 border-b border-slate-200 dark:border-slate-800 pb-3">
         <Activity className="h-4 w-4 text-purple-500 animate-pulse" />
         <span className="text-xs font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-          Live Arena Match Supervisor Console
+          Live Arena Match Supervisor Console {isStaff && "(READ-ONLY MONITOR)"}
         </span>
       </div>
 
@@ -242,7 +248,6 @@ export const AdminPanel = () => {
             <ShieldCheck className="h-4 w-4" /> Active Court Access Security Tokens
           </h2>
 
-          {/* 🛠️ UI/UX MOBILE REFACTOR: Swapped hidden behavior for an adaptive responsive row layout block */}
           {currentlyLiveMatches.length > 0 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-4 p-3 bg-slate-50 border border-slate-200/60 rounded-xl dark:bg-slate-950 dark:border-white/5 animate-in fade-in duration-200 shrink-0">
               <span className="text-[10px] font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 shrink-0">
@@ -309,13 +314,15 @@ export const AdminPanel = () => {
               <div className="flex gap-1">
                 <button
                   onClick={() => handleToggleAnnouncementMode('short')}
-                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all cursor-pointer ${announcementMode === 'short' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                  disabled={isStaff}
+                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all ${isStaff ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${announcementMode === 'short' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
                 >
                   Simple
                 </button>
                 <button
                   onClick={() => handleToggleAnnouncementMode('detailed')}
-                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all cursor-pointer ${announcementMode === 'detailed' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                  disabled={isStaff}
+                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all ${isStaff ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${announcementMode === 'detailed' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
                 >
                   Detailed
                 </button>
@@ -385,13 +392,13 @@ export const AdminPanel = () => {
                         </div>
                       </div>
 
-                      {/* 🛠️ UI/UX MOBILE REFACTOR: Form drop-downs utilize full-width grids on phones to maximize thumb tap targets */}
                       <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto justify-end shrink-0">
                         
+                        {/* 🛠️ READ-ONLY IMPLEMENTATION: Dropdown and control elements dynamically freeze for STAFF */}
                         <select
                           value={currentSelectedReferee}
                           onChange={(e) => handleRefereeChange(match.id, e.target.value)}
-                          disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0}
+                          disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0 || isStaff}
                           className="bg-white text-slate-800 text-xs px-2.5 py-2.5 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto sm:max-w-40 truncate"
                         >
                           {staffReferees.length === 0 ? (
@@ -411,7 +418,7 @@ export const AdminPanel = () => {
                         <select 
                           value={currentSelectedCourt} 
                           onChange={(e) => handleCourtChange(match.id, Number(e.target.value))}
-                          disabled={isBlocked || availableCourts.length === 0}
+                          disabled={isBlocked || availableCourts.length === 0 || isStaff}
                           className="bg-white text-slate-800 text-xs px-2.5 py-2.5 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto"
                         >
                           {availableCourts.length === 0 ? (
@@ -425,14 +432,14 @@ export const AdminPanel = () => {
 
                         <button 
                           onClick={() => startMatch(match.id)}
-                          disabled={isBlocked || isResourceExhausted}
+                          disabled={isBlocked || isResourceExhausted || isStaff}
                           className={`text-xs font-bold px-4 py-3 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto ${
-                            isBlocked || isResourceExhausted
-                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600 shadow-none'
+                            isBlocked || isResourceExhausted || isStaff
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600 shadow-none opacity-60'
                               : 'bg-purple-600 text-white hover:bg-opacity-90 active:scale-95 cursor-pointer'
                           }`}
                         >
-                          Deploy
+                          {isStaff ? "Read Only" : "Deploy"}
                         </button>
                       </div>
                     </div>
