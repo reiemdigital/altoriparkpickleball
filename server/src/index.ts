@@ -299,16 +299,20 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
 
 app.get('/api/admin/staff', requireAuth(['ADMIN', 'STAFF']), async (_req: Request, res: Response) => {
   try {
+    // 🛡️ Switch explicit strings to '*' to stop structural table schema mismatches from crashing the request
     const { data, error } = await supabase
       .from('staff_profiles')
-      .select('id, username, display_name, role')
-      .order('display_name', { ascending: true });
+      .select('*');
 
     if (error) {
+      // 🔥 CRITICAL: This print trace reveals the exact architectural mismatch message inside your server terminal
+      console.error("❌ Supabase Staff Query Database Failure:", error.message, error.details);
       return res.status(400).json({ error: error.message });
     }
+
     return res.json(data || []);
-  } catch {
+  } catch (err) {
+    console.error("Staff route execution crash:", err);
     return res.status(500).json({ error: "Failed to extract staff directory data models." });
   }
 });

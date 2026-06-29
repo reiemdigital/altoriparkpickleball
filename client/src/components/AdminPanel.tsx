@@ -390,21 +390,25 @@ export const AdminPanel = () => {
                       <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end shrink-0">
                         
                         <select
-                          value={currentSelectedReferee}
-                          onChange={(e) => handleRefereeChange(match.id, e.target.value)}
-                          disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left max-w-40 truncate"
-                        >
-                          {staffReferees.length === 0 ? (
-                            <option value="" disabled>⚠️ No registered staff found</option>
-                          ) : availableReferees.length === 0 ? (
-                            <option value="" disabled>⚠️ All Refs Deployed</option>
-                          ) : (
-                            availableReferees.map((ref) => (
-                              <option key={ref.id} value={ref.display_name}>{ref.display_name}</option>
-                            ))
-                          )}
-                        </select>
+  value={currentSelectedReferee}
+  onChange={(e) => handleRefereeChange(match.id, e.target.value)}
+  disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0}
+  className="bg-white text-slate-800 text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left max-w-40 truncate"
+>
+  {staffReferees.length === 0 ? (
+    <option value="" disabled>⚠️ No registered staff found</option>
+  ) : availableReferees.length === 0 ? (
+    <option value="" disabled>⚠️ All Refs Deployed</option>
+  ) : (
+    availableReferees.map((ref) => {
+      // 🛡️ Safe property fallback if display_name is null/empty in the database table row
+      const visualName = ref.display_name || ref.username || "Official Staff";
+      return (
+        <option key={ref.id} value={visualName}>{visualName}</option>
+      );
+    })
+  )}
+</select>
 
                         <select 
                           value={currentSelectedCourt} 
