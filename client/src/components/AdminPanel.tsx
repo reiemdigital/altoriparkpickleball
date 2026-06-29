@@ -1,5 +1,5 @@
 // client/src/components/AdminPanel.tsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { useTournamentStore } from '../store/useTournamentStore.js';
@@ -11,16 +11,21 @@ import {
   Eye, 
   Layers, 
   Settings, 
-  Activity
+  Activity,
+  Loader2
 } from 'lucide-react';
 import { useAlertStore } from '../store/useAlertStore';
 
-const STATIC_REFEREES = [
-  "Referee Dino", "Referee Elena", "Referee Gabriel", "Referee Marcus",
-  "Referee Sophia", "Referee Jun", "Referee Katrina", "Referee Raymond"
-];
+/** =======================================================
+ * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
+ * ======================================================= */
+interface StaffProfile {
+  id: string;
+  username: string;
+  display_name: string;
+  role: 'ADMIN' | 'STAFF';
+}
 
-// SENIOR DEV FIX: Expanded the interface to explicitly support both Supabase and memory-injected casing models
 interface CustomMatchExtension {
   id: string;
   status: string;
@@ -75,6 +80,10 @@ export const AdminPanel = () => {
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
 
+  // 🛠️ DYNAMIC REF LIFECYCLE STATES
+  const [staffReferees, setStaffReferees] = useState<StaffProfile[]>([]);
+  const [isStaffLoading, setIsStaffLoading] = useState<boolean>(true);
+
   // Command Console Form Tracking States
   const [courtAssignments, setCourtAssignments] = useState<Record<string, number>>({});
   const [refereeAssignments, setRefereeAssignments] = useState<Record<string, string>>({});
@@ -84,6 +93,26 @@ export const AdminPanel = () => {
   });
 
   const totalVenueCourts = gatewayData?.tournament?.court_count || 4;
+
+  // =========================================================================
+  // 🛰️ DISPATCH LAYER: FETCH ACTIVE STAFF ACCOUNTS FROM DATABASE
+  // =========================================================================
+  useEffect(() => {
+    const fetchStaffReferees = async () => {
+      try {
+        setIsStaffLoading(true);
+        // Requests user context securely over authenticated route wrappers
+        const response = await axios.get<StaffProfile[]>(`${SOCKET_URL}/api/admin/staff`);
+        setStaffReferees(response.data || []);
+      } catch (error) {
+        console.error("Failed to query runtime staff registers:", error);
+      } finally {
+        setIsStaffLoading(false);
+      }
+    };
+
+    fetchStaffReferees();
+  }, []);
 
   const handleToggleAnnouncementMode = (mode: 'short' | 'detailed') => {
     setAnnouncementMode(mode);
@@ -98,7 +127,6 @@ export const AdminPanel = () => {
     return new Set(currentlyLiveMatches.map(m => m.court_id).filter(Boolean) as number[]);
   }, [currentlyLiveMatches]);
 
-  // SENIOR DEV FIX: Look up both cases to ensure deployed referees are marked as occupied accurately
   const occupiedReferees = useMemo(() => {
     return new Set(currentlyLiveMatches.map(m => m.referee_name || m.refereeName).filter(Boolean) as string[]);
   }, [currentlyLiveMatches]);
@@ -135,10 +163,15 @@ export const AdminPanel = () => {
     if (!targetMatch) return;
 
     const availableCourts = Array.from({ length: totalVenueCourts }, (_, i) => i + 1).filter(c => !occupiedCourts.has(c));
-    const availableReferees = STATIC_REFEREES.filter(r => !occupiedReferees.has(r));
+    
+    // Filter out dynamic referee instances matching current string fields
+    const availableReferees = staffReferees.filter(r => !occupiedReferees.has(r.display_name));
 
     const assignedCourt = courtAssignments[matchId] || (availableCourts[0] || 1);
-    const assignedReferee = refereeAssignments[matchId] || (availableReferees[0] || STATIC_REFEREES[0]);
+    
+    // Resolves fallback fields based on live fetched database states cleanly
+    const fallbackRefereeName = staffReferees[0]?.display_name || "Official Referee";
+    const assignedReferee = refereeAssignments[matchId] || (availableReferees[0]?.display_name || fallbackRefereeName);
 
     const courtOccupiedMatch = currentlyLiveMatches.find(m => m.court_id === assignedCourt);
     if (courtOccupiedMatch) {
@@ -189,7 +222,7 @@ export const AdminPanel = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 text-left">
       
       {/* CONTROL CONSOLE SUB-HEADER META BLOCK */}
       <div className="flex items-center gap-2 px-1 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -235,19 +268,17 @@ export const AdminPanel = () => {
                   <div key={m.id} className="p-3 bg-slate-50 text-slate-900 rounded-xl border border-slate-200/60 font-mono text-xs flex flex-col justify-between gap-2 shadow-sm dark:bg-slate-950 dark:text-white dark:border-white/5">
                     <div className="flex justify-between items-center border-b border-slate-200 dark:border-white/5 pb-1.5">
                       <span className="text-purple-600 dark:text-purple-400 font-bold">COURT 0{m.court_id}</span>
-                      {/* SENIOR DEV FIX: Implemented relational string check for referee definitions */}
-                      <span className="text-[10px] text-slate-500 flex items-center gap-1 dark:text-slate-400">
-                        <UserCheck className="h-3 w-3" /> {m.referee_name || m.refereeName || "Assigned Ref"}
+                      <span className="text-[10px] text-slate-500 flex items-center gap-1 dark:text-slate-400 truncate max-w-[60%]">
+                        <UserCheck className="h-3 w-3 shrink-0" /> <span className="truncate">{m.referee_name || m.refereeName || "Assigned Ref"}</span>
                       </span>
                     </div>
                     <div className="text-[11px] truncate text-slate-800 font-sans font-semibold dark:text-slate-200 flex flex-col gap-0.5">
-                      <div>{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
+                      <div className="truncate">{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
                       <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
                     </div>
                     <div className="mt-1 flex justify-between items-center bg-slate-100/80 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:bg-black/40 dark:border-white/5">
                       <span className="text-[9px] uppercase tracking-wider text-slate-500 flex items-center gap-1 dark:text-slate-400"><Smartphone className="h-3 w-3" /> Terminal PIN:</span>
                       <div className="flex items-center gap-2">
-                        {/* SENIOR DEV FIX: Swapped logic handler to read camelCase session parameters securely */}
                         <span className="font-black text-sm tracking-widest text-emerald-600 dark:text-emerald-400">
                           {revealedPins[m.id] ? (m.pinCode || m.pin_code || "----") : "••••"}
                         </span>
@@ -288,24 +319,30 @@ export const AdminPanel = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto max-h-105 pr-1">
-            {processedPendingMatches.length === 0 ? (
+            {isStaffLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 font-mono text-xs">
+                <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+                <span>Syncing Database Referees...</span>
+              </div>
+            ) : processedPendingMatches.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500 italic pt-2">
                 No pending matches available. All courts are deployed or finished!
               </p>
             ) : (
               <div className="space-y-3">
                 {processedPendingMatches.map((match) => {
-                  const availableReferees = STATIC_REFEREES.filter(r => !occupiedReferees.has(r));
+                  const availableReferees = staffReferees.filter(r => !occupiedReferees.has(r.display_name));
                   const availableCourts = Array.from({ length: totalVenueCourts }, (_, i) => i + 1).filter(c => !occupiedCourts.has(c));
 
                   const currentSelectedCourt = courtAssignments[match.id] || (availableCourts[0] || 1);
-                  const currentSelectedReferee = refereeAssignments[match.id] || (availableReferees[0] || STATIC_REFEREES[0]);
+                  const fallbackRefereeName = staffReferees[0]?.display_name || "";
+                  const currentSelectedReferee = refereeAssignments[match.id] || (availableReferees[0]?.display_name || fallbackRefereeName);
                   
                   const isTeam1Busy = busyTeamIds.has(match.team1_id);
                   const isTeam2Busy = busyTeamIds.has(match.team2_id);
                   const isBlocked = isTeam1Busy || isTeam2Busy;
 
-                  const isResourceExhausted = availableCourts.length === 0 || availableReferees.length === 0;
+                  const isResourceExhausted = availableCourts.length === 0 || staffReferees.length === 0 || availableReferees.length === 0;
 
                   return (
                     <div 
@@ -348,14 +385,16 @@ export const AdminPanel = () => {
                         <select
                           value={currentSelectedReferee}
                           onChange={(e) => handleRefereeChange(match.id, e.target.value)}
-                          disabled={isBlocked || availableReferees.length === 0}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left"
+                          disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0}
+                          className="bg-white text-slate-800 text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left max-w-40 truncate"
                         >
-                          {availableReferees.length === 0 ? (
+                          {staffReferees.length === 0 ? (
+                            <option value="" disabled>⚠️ No registered staff found</option>
+                          ) : availableReferees.length === 0 ? (
                             <option value="" disabled>⚠️ All Refs Deployed</option>
                           ) : (
                             availableReferees.map((ref) => (
-                              <option key={ref} value={ref}>{ref}</option>
+                              <option key={ref.id} value={ref.display_name}>{ref.display_name}</option>
                             ))
                           )}
                         </select>
