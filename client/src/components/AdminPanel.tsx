@@ -86,7 +86,15 @@ export const AdminPanel = () => {
     const fetchStaffReferees = async () => {
       try {
         setIsStaffLoading(true);
-        const response = await axios.get(`${SOCKET_URL}/api/admin/staff`);
+        
+        // 🔐 Extract auth token to clear firewall validation blocks
+        const secureToken = sessionStorage.getItem('altori_admin_token');
+        
+        const response = await axios.get(`${SOCKET_URL}/api/admin/staff`, {
+          withCredentials: true,
+          headers: secureToken ? { Authorization: `Bearer ${secureToken}` } : {}
+        });
+        
         if (response.data && Array.isArray(response.data)) {
           setStaffReferees(response.data);
         } else {
@@ -181,9 +189,13 @@ export const AdminPanel = () => {
     }
 
     try {
+      const secureToken = sessionStorage.getItem('altori_admin_token');
       await axios.put(`${SOCKET_URL}/api/matches/${matchId}/start`, {
         courtId: assignedCourt,
         refereeName: assignedReferee
+      }, {
+        withCredentials: true,
+        headers: secureToken ? { Authorization: `Bearer ${secureToken}` } : {}
       });
 
       speakMatchAnnouncementInternal(
@@ -381,7 +393,7 @@ export const AdminPanel = () => {
                           className={`text-xs font-bold px-4 py-3.5 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto min-h-[40px] flex items-center justify-center ${
                             isBlocked || isResourceExhausted || isStaff
                               ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 shadow-none opacity-60'
-                              : 'bg-purple-600 text-white hover:bg-opacity-90 active:scale-95 cursor-pointer'
+                              : 'bg-purple-600 text-white hover:bg-opacity-90 active:scale-[0.97] cursor-pointer'
                           }`}
                         >
                           {isStaff ? "Read Only" : "Deploy"}
