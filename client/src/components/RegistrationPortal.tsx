@@ -8,7 +8,8 @@ import { SOCKET_URL, socket } from '../socket';
 import { 
   UserPlus, Settings2, Users, Layers, Play, Trash2, Edit2, 
   Check, X, GripVertical, Sparkles, AlertCircle, Eye, 
-  ShieldCheck, Loader2, FileText, User} from 'lucide-react';
+  ShieldCheck, Loader2, FileText, User, RotateCcw
+} from 'lucide-react';
 
 interface PlayerModel {
   id: string;
@@ -39,14 +40,17 @@ interface TeamRosterModel {
 export const RegistrationPortal = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   
+  // Zustand State Hooks
   const standings = useTournamentStore((state) => state.standings) as unknown as TeamRosterModel[];
   const categories = useTournamentStore((state) => state.gatewayData.categories);
   const matches = useTournamentStore((state) => state.matches);
 
+  // Zustand State Mutation Action Setters
   const setStandings = useTournamentStore((state) => state.setStandings);
   const setGatewayData = useTournamentStore((state) => state.setGatewayData);
   const setMatches = useTournamentStore((state) => state.setMatches);
 
+  // Form Fields State
   const [category, setCategory] = useState('');
   const [teamName, setTeamName] = useState('');
   const [player1Name, setPlayer1Name] = useState('');
@@ -55,18 +59,22 @@ export const RegistrationPortal = () => {
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
 
+  // Admin Config States
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [tempMaxSlots, setTempMaxSlots] = useState<number>(16);
   const [tempGroupCount, setTempGroupCount] = useState<number>(1);
 
+  // Inline Team Editing States
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editTeamName, setEditTeamName] = useState<string>('');
 
+  // Administrative Verification States
   const [pendingTeams, setPendingTeams] = useState<TeamRosterModel[]>([]);
   const [isPendingLoading, setIsPendingLoading] = useState(true);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
 
+  // 🛠️ LOOKUP LAYER
   const currentCategoryObj = useMemo(() => {
     return categories.find((c: TournamentCategory) => c.category_name === category);
   }, [categories, category]);
@@ -79,6 +87,7 @@ export const RegistrationPortal = () => {
     return currentCategoryObj?.category_type === 'Singles';
   }, [currentCategoryObj]);
 
+  // Unifies state sync updates across store vectors cleanly
   const refreshData = useCallback(async () => {
     if (!tournamentId) return;
     try {
@@ -107,20 +116,27 @@ export const RegistrationPortal = () => {
     }
   }, [tournamentId, setStandings, setGatewayData, setMatches]);
 
+  // Handle baseline initial hydration sequence on mount
   useEffect(() => {
     let deferTask: ReturnType<typeof setTimeout>;
+
     if (tournamentId) {
       deferTask = setTimeout(() => {
         refreshData();
       }, 0);
     }
-    socket.on('registration-updated', () => { refreshData(); });
+
+    socket.on('registration-updated', () => {
+      refreshData();
+    });
+
     return () => {
       if (deferTask) clearTimeout(deferTask);
       socket.off('registration-updated');
     };
   }, [tournamentId, refreshData]);
 
+  // Handle fallback alignment for drop selection values
   useEffect(() => {
     if (categories && categories.length > 0) {
       const isCurrentlySelectedValid = categories.some(c => c.category_name === category);
@@ -190,6 +206,7 @@ export const RegistrationPortal = () => {
         maxSlots: tempMaxSlots, 
         groupCount: tempGroupCount
       }, { withCredentials: true });
+      
       setEditingCategory(null);
       await refreshData();
     } catch (error: unknown) {
@@ -245,6 +262,35 @@ export const RegistrationPortal = () => {
     }
   };
 
+  // 🚀 FIXED/ADDED: Unseeding transaction mutation pipeline
+  const handleUnseedCategory = async (catName: string) => {
+    const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
+    if (!tournamentId || !targetCat) return;
+
+    const safetyVerification = window.confirm(
+      `🚨 WARNING: UNSEED BRACKETS?\n\nThis will permanently delete ALL generated match schedules, score records, and court logs for the "${catName}" category division.\n\nAll teams will be safely returned to a drag-and-drop draft state for layout re-arrangements. Are you sure you want to proceed?`
+    );
+
+    if (!safetyVerification) return;
+
+    try {
+      const response = await axios.post(`${SOCKET_URL}/api/groups/unseed`, {
+        tournamentId,
+        categoryId: targetCat.category_id,
+        categoryName: catName
+      }, { withCredentials: true });
+
+      alert(response.data.message || "Seeding patterns wiped out successfully. Bracket returned to draft state.");
+      await refreshData();
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data?.error || "Backend failed to safely drop seeded bracket records.");
+      } else {
+        alert("An unexpected database connection error occurred trying to unseed pools.");
+      }
+    }
+  };
+
   const handleDeleteTeam = async (teamId: string, name: string) => {
     if (!window.confirm(`Are you sure you want to completely remove "${name}" from the roster?`)) return;
     try {
@@ -293,7 +339,6 @@ export const RegistrationPortal = () => {
   return (
     <div className="space-y-6 sm:space-y-8 w-full max-w-[1600px] mx-auto px-1 sm:px-4">
       
-      {/* 🚀 RESPONSIVE UPGRADE: Clean alignment layout matrix for entry columns */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start w-full">
         
         {/* LEFT HAND SIDE COLUMN: MANUAL ENTRY ONBOARDING REGISTRY FORM */}
@@ -406,7 +451,6 @@ export const RegistrationPortal = () => {
               </div>
             ) : (
               <>
-                {/* 🖥️ VIEW VARIANT A: DESKTOP ADAPTER HIGH-DENSITY GRID */}
                 <div className="hidden md:block overflow-x-auto w-full border border-slate-200 dark:border-white/5 rounded-xl bg-slate-50/50 dark:bg-slate-950/20">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
@@ -464,7 +508,6 @@ export const RegistrationPortal = () => {
                   </table>
                 </div>
 
-                {/* 📱 VIEW VARIANT B: MOBILE LAYER CARD ENGINE */}
                 <div className="block md:hidden space-y-3 w-full">
                   {pendingTeams.map((team) => (
                     <div key={team.id} className="p-4 bg-slate-50 dark:bg-white/2 border border-slate-200 dark:border-white/5 rounded-xl space-y-3 flex flex-col text-xs w-full min-w-0">
@@ -561,7 +604,6 @@ export const RegistrationPortal = () => {
               return (
                 <div key={catObj.category_id} className="p-4 sm:p-5 bg-white border border-slate-200 rounded-2xl flex flex-col justify-between min-h-90 shadow-sm shadow-slate-100 dark:border-white/5 dark:bg-slate-950/40 backdrop-blur-sm transition-all duration-200 w-full min-w-0">
                   <div className="w-full min-w-0">
-                    {/* 🚀 RESPONSIVE UPGRADE: Stack category block headers gracefully if text bounds overflow */}
                     <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-4 border-b border-slate-50 dark:border-white/5 pb-2 min-w-0">
                       <h3 className="text-xs font-black text-slate-900 dark:text-slate-200 uppercase tracking-wider font-mono truncate max-w-full sm:max-w-xs flex-1" title={cat}>{cat}</h3>
                       <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold border transition-colors shrink-0 ${
@@ -604,7 +646,6 @@ export const RegistrationPortal = () => {
                         <span className="text-[10px] text-slate-400 italic block pt-10 text-center">No participants registered yet</span>
                       ) : isAllocated ? (
                         <div className="space-y-4 w-full min-w-0">
-                          {/* 🚀 RESPONSIVE UPGRADE: Grid changes layout patterns on smaller handheld rows cleanly */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1 w-full min-w-0">
                             {targetGroupLabels.map(groupName => (
                               <div 
@@ -716,7 +757,6 @@ export const RegistrationPortal = () => {
                                       {team.address && <span className="text-[11px] font-medium text-slate-400 italic shrink-0">- {team.address}</span>}
                                     </div>
                                   </div>
-                                  {/* 🚀 RESPONSIVE UPGRADE: Expanded trigger bounding areas for easy touch target tapping on small handheld remotes */}
                                   <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                     <button onClick={() => { setEditingTeamId(team.id); setEditTeamName(team.team_name); }} className="text-slate-400 hover:text-purple-600 p-2 cursor-pointer transition-colors" title="Edit Team"><Edit2 className="h-3.5 w-3.5" /></button>
                                     <button onClick={() => handleDeleteTeam(team.id, team.team_name)} className="text-slate-400 hover:text-red-500 p-2 cursor-pointer transition-colors" title="Remove Team"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -772,11 +812,21 @@ export const RegistrationPortal = () => {
                               <Play className="h-2.5 w-2.5 fill-current shrink-0" /> Seed Pools
                             </button>
                           )}
+
+                          {/* 🚀 REVISE PLAN IMPLEMENTATION: Unseeding toggle option wrapper layout button */}
+                          {isSeeded && (
+                            <button
+                              onClick={() => handleUnseedCategory(cat)}
+                              className="text-[9px] font-mono font-bold uppercase bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-600 hover:text-white px-2.5 py-2 rounded-lg flex items-center gap-1 transition-all cursor-pointer dark:bg-rose-500/5 dark:border-rose-500/10 dark:hover:bg-rose-600 dark:hover:text-white min-h-[32px]"
+                            >
+                              <RotateCcw className="h-2.5 w-2.5 shrink-0 animate-reverse-spin" /> Unseed Pools
+                            </button>
+                          )}
                         </div>
                         
                         <button 
                           onClick={() => { setEditingCategory(cat); setTempMaxSlots(maxLimit); setTempGroupCount(activeGroupCount); }} 
-                          className={`text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer py-1.5 ${isSeeded ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-purple-600'}`}
+                          className={`text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer py-1.5 ${isSeeded ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-purple-600'}`}
                           disabled={isSeeded}
                         >
                           <Settings2 className="h-3 w-3 shrink-0" /> Config Settings
