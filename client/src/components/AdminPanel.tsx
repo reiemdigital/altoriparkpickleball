@@ -15,9 +15,6 @@ import {
 } from 'lucide-react';
 import { useAlertStore } from '../store/useAlertStore';
 
-/** =======================================================
- * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
- * ======================================================= */
 interface StaffProfile {
   id: string;
   username: string;
@@ -35,9 +32,7 @@ interface CustomMatchExtension {
   team2?: { team_name: string };
   category?: { name: string };
   referee_name?: string | null;
-  refereeName?: string | null; // In-memory fallback
-  pin_code?: string | null;
-  pinCode?: string | null;     // In-memory fallback
+  refereeName?: string | null; 
 }
 
 declare global {
@@ -48,7 +43,6 @@ declare global {
 
 const speakMatchAnnouncementInternal = (team1: string, team2: string, court: number, category: string, mode: 'short' | 'detailed') => {
   if (!('speechSynthesis' in window)) return;
-
   window.speechSynthesis.cancel();
 
   const phraseText = mode === 'detailed'
@@ -56,19 +50,14 @@ const speakMatchAnnouncementInternal = (team1: string, team2: string, court: num
     : `Next Match. ${team1} Versus ${team2}. Please proceed to Court Number ${court}.`;
 
   const utterance = new SpeechSynthesisUtterance(phraseText);
-  
   const availableVoices = window.speechSynthesis.getVoices();
   const americanVoice = availableVoices.find(voice => 
     voice.lang === 'en-US' || voice.lang.includes('en_US') || voice.name.toLowerCase().includes('united states')
   );
 
-  if (americanVoice) {
-    utterance.voice = americanVoice;
-  }
-
+  if (americanVoice) utterance.voice = americanVoice;
   utterance.rate = 0.85; 
   utterance.pitch = 1.0;
-  
   window.speechSynthesis.speak(utterance);
 };
 
@@ -79,15 +68,12 @@ export const AdminPanel = () => {
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
 
-  // 🛠️ DYNAMIC REF LIFECYCLE STATES
   const [staffReferees, setStaffReferees] = useState<StaffProfile[]>([]);
   const [isStaffLoading, setIsStaffLoading] = useState<boolean>(true);
 
-  // 🛡️ GRANULAR AUTHORIZATION LAYER DEFINITIONS
   const activeCachedRole = (sessionStorage.getItem('altori_admin_role') || sessionStorage.getItem('altori_user_role') || 'STAFF').toUpperCase();
   const isStaff = activeCachedRole === 'STAFF';
 
-  // Command Console Form Tracking States
   const [courtAssignments, setCourtAssignments] = useState<Record<string, number>>({});
   const [refereeAssignments, setRefereeAssignments] = useState<Record<string, string>>({});
   const [announcementMode, setAnnouncementMode] = useState<'short' | 'detailed'>(() => {
@@ -96,19 +82,14 @@ export const AdminPanel = () => {
 
   const totalVenueCourts = gatewayData?.tournament?.court_count || 4;
 
-  // =========================================================================
-  // 🛰️ DISPATCH LAYER: FETCH ACTIVE STAFF ACCOUNTS FROM DATABASE
-  // =========================================================================
   useEffect(() => {
     const fetchStaffReferees = async () => {
       try {
         setIsStaffLoading(true);
         const response = await axios.get(`${SOCKET_URL}/api/admin/staff`);
-        
         if (response.data && Array.isArray(response.data)) {
           setStaffReferees(response.data);
         } else {
-          console.warn("API resolved, but unexpected non-array format returned:", response.data);
           setStaffReferees([]);
         }
       } catch (error) {
@@ -118,7 +99,6 @@ export const AdminPanel = () => {
         setIsStaffLoading(false);
       }
     };
-
     fetchStaffReferees();
   }, []);
 
@@ -213,7 +193,6 @@ export const AdminPanel = () => {
         targetMatch.category?.name || "Tournament Division",
         announcementMode
       );
-
     } catch (error) {
       if (axios.isAxiosError(error)) {
         alert(error.response?.data?.error || "Failed to deploy match.");
@@ -224,50 +203,47 @@ export const AdminPanel = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 text-left">
+    <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6 text-left px-1">
       
-      {/* CONTROL CONSOLE SUB-HEADER META BLOCK */}
       <div className="flex items-center gap-2 px-1 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <Activity className="h-4 w-4 text-purple-500 animate-pulse" />
-        <span className="text-xs font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+        <Activity className="h-4 w-4 text-purple-500 animate-pulse shrink-0" />
+        <span className="text-[11px] font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">
           Live Arena Match Supervisor Console {isStaff && "(READ-ONLY MONITOR)"}
         </span>
       </div>
 
-      {/* 🚀 UI/UX REFACTOR: Transformed columns layout to asymmetric 12-column grid template layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
         
         {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP (xl:col-span-5) */}
-        <div className="xl:col-span-5 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
+        <div className="xl:col-span-5 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[300px] xl:min-h-130">
           <h2 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 shrink-0">
-            <ShieldCheck className="h-4 w-4" /> Active Court Access Remote Monitors
+            <ShieldCheck className="h-4 w-4 shrink-0" /> Active Court Access Remote Monitors
           </h2>
 
-          <div className="flex-1 overflow-y-auto max-h-110 pr-1">
+          <div className="flex-1 overflow-y-auto max-h-110 pr-1 w-full">
             {currentlyLiveMatches.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500 italic pt-2">No courts are currently running active match sessions.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
                 {currentlyLiveMatches.map((m) => (
-                  <div key={m.id} className="p-3 bg-slate-50 text-slate-900 rounded-xl border border-slate-200/60 font-mono text-xs flex flex-col justify-between gap-3 shadow-sm dark:bg-slate-950 dark:text-white dark:border-white/5">
-                    <div className="flex justify-between items-center border-b border-slate-200 dark:border-white/5 pb-1.5">
-                      <span className="text-purple-600 dark:text-purple-400 font-bold">COURT 0{m.court_id}</span>
+                  <div key={m.id} className="p-3 bg-slate-50 text-slate-900 rounded-xl border border-slate-200/60 font-mono text-xs flex flex-col justify-between gap-3 shadow-sm dark:bg-slate-950 dark:text-white dark:border-white/5 min-w-0">
+                    <div className="flex justify-between items-center border-b border-slate-200 dark:border-white/5 pb-1.5 min-w-0 gap-2">
+                      <span className="text-purple-600 dark:text-purple-400 font-bold shrink-0">COURT 0{m.court_id}</span>
                       <span className="text-[10px] text-slate-500 flex items-center gap-1 dark:text-slate-400 truncate max-w-[60%]">
                         <UserCheck className="h-3 w-3 shrink-0" /> <span className="truncate">{m.referee_name || m.refereeName || "Assigned Ref"}</span>
                       </span>
                     </div>
                     
-                    <div className="text-[11px] truncate text-slate-800 font-sans font-semibold dark:text-slate-200 flex flex-col gap-0.5">
-                      <div className="truncate">{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
+                    <div className="text-[11px] truncate text-slate-800 font-sans font-semibold dark:text-slate-200 flex flex-col gap-0.5 min-w-0">
+                      <div className="truncate">{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500 font-bold">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
                       <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
                     </div>
 
-                    {/* 🚀 REMOVED TERMINAL PIN UI: Replaced with a direct launch action hyperlink shortcut button */}
                     <Link 
                       to={`/referee/${m.id}`}
-                      className="w-full bg-[#64317C] text-white font-mono text-[11px] font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 hover:bg-opacity-90 active:scale-[0.98] transition-all text-center shadow-xs cursor-pointer"
+                      className="w-full bg-[#64317C] text-white font-mono text-[11px] font-bold py-3 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 hover:bg-opacity-90 active:scale-[0.98] transition-all text-center shadow-xs cursor-pointer min-h-[40px]"
                     >
-                      <Smartphone className="h-3.5 w-3.5" /> Launch Referee Remote ↗
+                      <Smartphone className="h-3.5 w-3.5 shrink-0" /> Launch Referee Remote ↗
                     </Link>
                   </div>
                 ))}
@@ -277,26 +253,26 @@ export const AdminPanel = () => {
         </div>
 
         {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL (xl:col-span-7) */}
-        <div className="xl:col-span-7 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
+        <div className="xl:col-span-7 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[350px] xl:min-h-130">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
               Director's Command Console
             </h2>
             
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl dark:bg-slate-950 border dark:border-white/5 shadow-inner justify-between sm:justify-start">
-              <span className="text-[9px] font-mono font-black text-slate-400 px-2 uppercase tracking-wide flex items-center gap-1"><Settings className="h-2.5 w-2.5 text-purple-500" /> Audio:</span>
-              <div className="flex gap-1">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl dark:bg-slate-950 border dark:border-white/5 shadow-inner justify-between sm:justify-start w-full sm:w-auto">
+              <span className="text-[9px] font-mono font-black text-slate-400 px-2 uppercase tracking-wide flex items-center gap-1"><Settings className="h-2.5 w-2.5 text-purple-500 shrink-0" /> Audio:</span>
+              <div className="flex gap-1 flex-1 sm:flex-none">
                 <button
                   onClick={() => handleToggleAnnouncementMode('short')}
                   disabled={isStaff}
-                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all ${isStaff ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${announcementMode === 'short' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                  className={`flex-1 sm:flex-none text-[9px] font-mono font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider transition-all ${isStaff ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${announcementMode === 'short' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                 >
                   Simple
                 </button>
                 <button
                   onClick={() => handleToggleAnnouncementMode('detailed')}
                   disabled={isStaff}
-                  className={`text-[9px] font-mono font-bold px-2 py-1 rounded-lg uppercase tracking-wider transition-all ${isStaff ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${announcementMode === 'detailed' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                  className={`flex-1 sm:flex-none text-[9px] font-mono font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider transition-all ${isStaff ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${announcementMode === 'detailed' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                 >
                   Detailed
                 </button>
@@ -304,7 +280,7 @@ export const AdminPanel = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-105 pr-1">
+          <div className="flex-1 overflow-y-auto max-h-105 pr-1 w-full">
             {isStaffLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 font-mono text-xs">
                 <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
@@ -315,7 +291,7 @@ export const AdminPanel = () => {
                 No pending matches available. All courts are deployed or finished!
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full">
                 {processedPendingMatches.map((match) => {
                   const availableReferees = staffReferees.filter(r => !occupiedReferees.has(r.display_name));
                   const availableCourts = Array.from({ length: totalVenueCourts }, (_, i) => i + 1).filter(c => !occupiedCourts.has(c));
@@ -327,30 +303,29 @@ export const AdminPanel = () => {
                   const isTeam1Busy = busyTeamIds.has(match.team1_id);
                   const isTeam2Busy = busyTeamIds.has(match.team2_id);
                   const isBlocked = isTeam1Busy || isTeam2Busy;
-
                   const isResourceExhausted = availableCourts.length === 0 || staffReferees.length === 0 || availableReferees.length === 0;
 
                   return (
                     <div 
                       key={match.id} 
-                      className={`flex flex-col lg:flex-row justify-between items-start lg:items-center p-4 rounded-xl border transition-all duration-300 gap-4 ${
+                      className={`flex flex-col lg:flex-row justify-between items-start lg:items-center p-4 rounded-xl border transition-all duration-300 gap-4 w-full min-w-0 ${
                         isBlocked 
-                          ? 'bg-slate-100/50 border-slate-200 opacity-50 dark:bg-slate-950/20 dark:border-white/5' 
-                          : 'bg-slate-50 border-slate-100 dark:bg-slate-900 dark:border-white/5'
+                          ? 'bg-slate-100/50 border-slate-200 opacity-50 dark:bg-slate-950/20' 
+                          : 'bg-slate-50 border-slate-100 dark:bg-slate-900'
                       }`}
                     >
                       <div className="flex-1 min-w-0 w-full">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">Match Queue</span>
                           {isBlocked && (
-                            <span className="text-[8px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
+                            <span className="text-[8px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider dark:bg-amber-500/10 dark:text-amber-400">
                               Teams on Court
                             </span>
                           )}
                         </div>
                         
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate block w-full">
                             <span className={isTeam1Busy ? "text-amber-600 dark:text-amber-400 underline decoration-dashed" : ""}>
                               {match.team1?.team_name || "Unknown Team"}
                             </span>
@@ -360,8 +335,8 @@ export const AdminPanel = () => {
                             </span>
                           </span>
 
-                          <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 select-all truncate">
-                            <Layers className="h-3 w-3 text-purple-500 inline mr-1" /> {match.category?.name || "General Category"}
+                          <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 select-all truncate w-full">
+                            <Layers className="h-3 w-3 text-purple-500 shrink-0" /> <span className="truncate">{match.category?.name || "General Category"}</span>
                           </span>
                         </div>
                       </div>
@@ -371,7 +346,7 @@ export const AdminPanel = () => {
                           value={currentSelectedReferee}
                           onChange={(e) => handleRefereeChange(match.id, e.target.value)}
                           disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0 || isStaff}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-2.5 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto sm:max-w-40 truncate"
+                          className="bg-white text-slate-800 text-xs px-2.5 py-3 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto sm:max-w-40 truncate min-h-[40px]"
                         >
                           {staffReferees.length === 0 ? (
                             <option value="" disabled>⚠️ No registered staff found</option>
@@ -380,9 +355,7 @@ export const AdminPanel = () => {
                           ) : (
                             availableReferees.map((ref) => {
                               const visualName = ref.display_name || ref.username || "Official Staff";
-                              return (
-                                <option key={ref.id} value={visualName}>{visualName}</option>
-                              );
+                              return <option key={ref.id} value={visualName}>{visualName}</option>;
                             })
                           )}
                         </select>
@@ -391,7 +364,7 @@ export const AdminPanel = () => {
                           value={currentSelectedCourt} 
                           onChange={(e) => handleCourtChange(match.id, Number(e.target.value))}
                           disabled={isBlocked || availableCourts.length === 0 || isStaff}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-2.5 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto"
+                          className="bg-white text-slate-800 text-xs px-2.5 py-3 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto min-h-[40px]"
                         >
                           {availableCourts.length === 0 ? (
                             <option value={0} disabled>⚠️ All Courts Busy</option>
@@ -405,9 +378,9 @@ export const AdminPanel = () => {
                         <button 
                           onClick={() => startMatch(match.id)}
                           disabled={isBlocked || isResourceExhausted || isStaff}
-                          className={`text-xs font-bold px-4 py-3 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto ${
+                          className={`text-xs font-bold px-4 py-3.5 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto min-h-[40px] flex items-center justify-center ${
                             isBlocked || isResourceExhausted || isStaff
-                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600 shadow-none opacity-60'
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 shadow-none opacity-60'
                               : 'bg-purple-600 text-white hover:bg-opacity-90 active:scale-95 cursor-pointer'
                           }`}
                         >

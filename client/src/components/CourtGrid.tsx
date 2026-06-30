@@ -49,7 +49,6 @@ export const CourtGrid = () => {
     }
   }, [tournamentId, setMatches]);
 
-  // 🚀 FIXED: Wrapped invocation in a deferred macro-task queue block to clear the ESLint cascading render warning cleanly
   useEffect(() => {
     if (tournamentId) {
       const deferFetchTask = setTimeout(() => {
@@ -171,8 +170,9 @@ export const CourtGrid = () => {
   };
 
   return (
-    <div className="relative">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="relative w-full">
+      {/* 🚀 RESPONSIVE UPGRADE: Adjusted dynamic gap tracking from desktop to mobile screen scopes */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {courts.map((num) => {
           const liveMatch = matches.find(m => m.court_id === num && m.status === 'LIVE');
 
@@ -180,7 +180,7 @@ export const CourtGrid = () => {
             <div 
               key={num} 
               onClick={liveMatch ? (e) => handleCourtClick(liveMatch, e) : undefined}
-              className={`relative p-5 rounded-2xl border transition-all duration-300 ${
+              className={`relative p-4 sm:p-5 rounded-2xl border transition-all duration-300 ${
                 liveMatch 
                   ? 'bg-white border-brand-accent/80 shadow-lg shadow-purple-600/[0.15] dark:bg-slate-900 dark:border-brand-accent/80' 
                   : 'bg-white border-slate-200/60 shadow-sm shadow-slate-100/50 dark:bg-brand-dark/20 dark:border-white/5 dark:shadow-none'
@@ -194,7 +194,7 @@ export const CourtGrid = () => {
                 </div>
               )}
 
-              <div className="flex justify-between items-start mb-6 gap-2 relative z-20">
+              <div className="flex justify-between items-start mb-4 sm:mb-6 gap-2 relative z-20">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black shrink-0 mt-0.5">Court 0{num}</span>
                   {liveMatch && isAdminView && (
@@ -209,13 +209,13 @@ export const CourtGrid = () => {
                 </div>
 
                 {liveMatch && (
-                  <div className="flex flex-col items-end gap-1.5 max-w-[70%]">
+                  <div className="flex flex-col items-end gap-1.5 max-w-[70%] min-w-0">
                     <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#088505]/10 text-[#088505] text-[10px] font-bold border border-[#088505]/20 dark:bg-[#088505]/15 dark:border-[#088505]/30 shrink-0">
                       <span className="h-1.5 w-1.5 bg-[#088505] rounded-full animate-pulse" />
                       LIVE
                     </span>
                     <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-right truncate w-full flex items-center justify-end gap-1">
-                      <Layers className="h-2.5 w-2.5 text-brand-accent shrink-0" /> {liveMatch.category?.name || "General Category"}
+                      <Layers className="h-2.5 w-2.5 text-brand-accent shrink-0" /> <span className="truncate">{liveMatch.category?.name || "General Category"}</span>
                     </span>
                   </div>
                 )}
@@ -227,42 +227,42 @@ export const CourtGrid = () => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0 }}
-                    className="flex flex-col relative py-1"
+                    className="flex flex-col relative py-1 w-full min-w-0"
                   >
-                    <div className="flex justify-between items-center bg-slate-50 border border-slate-100 px-4 py-4 rounded-xl dark:bg-black/20 dark:border-white/5">
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate pr-6">
+                    <div className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 sm:px-4 py-3 sm:py-4 rounded-xl dark:bg-black/20 dark:border-white/5 min-w-0 gap-2">
+                      <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 truncate flex-1">
                         {liveMatch.team1?.team_name || "Unknown Team"}
                       </span>
                       <motion.span 
                         key={liveMatch.team1_score}
                         initial={{ scale: 1.4, color: '#ef4444' }}
                         animate={{ scale: 1, color: '#7400d9' }} 
-                        className="text-2xl font-black min-w-[2rem] text-right"
+                        className="text-xl sm:text-2xl font-black min-w-[1.5rem] sm:min-w-[2rem] text-right shrink-0"
                       >
                         {liveMatch.team1_score}
                       </motion.span>
                     </div>
 
-                    <div className="my-3 block text-[14px] font-mono font-black tracking-[0.25em] text-brand-accent/90 dark:text-brand-accent/90 pointer-events-none select-none text-center pl-[0.25em]">
+                    <div className="my-2 sm:my-3 block text-[12px] sm:text-[14px] font-mono font-black tracking-[0.25em] text-brand-accent/90 text-center pl-[0.25em]">
                       VS
                     </div>
 
-                    <div className="flex justify-between items-center bg-slate-50 border border-slate-100 px-4 py-4 rounded-xl dark:bg-black/20 dark:border-white/5">
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate pr-6">
+                    <div className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 sm:px-4 py-3 sm:py-4 rounded-xl dark:bg-black/20 dark:border-white/5 min-w-0 gap-2">
+                      <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 truncate flex-1">
                         {liveMatch.team2?.team_name || "Unknown Team"}
                       </span>
                       <motion.span 
                         key={liveMatch.team2_score}
                         initial={{ scale: 1.4, color: '#ef4444' }}
                         animate={{ scale: 1, color: '#7400d9' }} 
-                        className="text-2xl font-black min-w-[2rem] text-right"
+                        className="text-xl sm:text-2xl font-black min-w-[1.5rem] sm:min-w-[2rem] text-right shrink-0"
                       >
                         {liveMatch.team2_score}
                       </motion.span>
                     </div>
                   </motion.div>
                 ) : (
-                  <div className="h-36 flex items-center justify-center border border-dashed border-slate-200 rounded-xl dark:border-white/5">
+                  <div className="h-28 sm:h-36 flex items-center justify-center border border-dashed border-slate-200 rounded-xl dark:border-white/5">
                     <span className="text-[10px] text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wider font-mono">Available</span>
                   </div>
                 )}
@@ -280,14 +280,14 @@ export const CourtGrid = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSelectedMatch(null)} 
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex justify-center items-center p-4 z-[200]"
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex justify-center items-center p-3 sm:p-4 z-[200]"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()} 
-              className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl max-w-sm w-full font-sans dark:bg-slate-900 dark:border-white/10 text-slate-900 dark:text-white select-none"
+              className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-2xl max-w-sm w-full font-sans dark:bg-slate-900 dark:border-white/10 text-slate-900 dark:text-white select-none my-auto"
             >
               <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-3 mb-4">
                 <div className="flex items-center gap-1.5">

@@ -17,9 +17,6 @@ import {
   PlusCircle, Save, Trash2, Image 
 } from 'lucide-react';
 
-/** =======================================================
- * DATA MODEL & LOCAL TYPES FOR STRICT TYPE-CHECKING
- * ======================================================= */
 type AdminTabType = 'registry' | 'console';
 
 interface Tournament {
@@ -34,9 +31,6 @@ interface Tournament {
   cover_url?: string | null;
 }
 
-/** =======================================================
- * ADMIN WORKSPACE GATEWAY MANAGER PANEL (Authenticated)
- * ======================================================= */
 export function AdminWorkspaceGateway() {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const [adminTab, setAdminTab] = useState<AdminTabType>('console');
@@ -74,7 +68,6 @@ export function AdminWorkspaceGateway() {
   const [editCoverUrl, setEditCoverUrl] = useState(''); 
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 🛡️ NORMALIZE CASE MATCHING: Ensure token values match our uppercase database convention safely
   const activeCachedRole = (sessionStorage.getItem('altori_admin_role') || 'STAFF').toUpperCase();
 
   const fetchAssignedData = useCallback(async () => {
@@ -214,7 +207,7 @@ export function AdminWorkspaceGateway() {
     try { 
       await axios.post(`${SOCKET_URL}/api/auth/logout`); 
     } catch { 
-      /* Ignore logout anomalies */ 
+      /* Ignore anomalies */ 
     } finally { 
       setIsAuthenticated(false);
       sessionStorage.removeItem('altori_admin_auth');
@@ -225,31 +218,28 @@ export function AdminWorkspaceGateway() {
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto p-8 bg-white border border-slate-200 rounded-3xl shadow-sm dark:bg-slate-900/40 dark:border-white/5 mt-12 text-left animate-in fade-in duration-200 font-sans">
-        <div className="text-center mb-8">
+      <div className="w-full max-w-md mx-auto p-4 sm:p-8 bg-white border border-slate-200 rounded-3xl shadow-sm dark:bg-slate-900/40 dark:border-white/5 mt-8 sm:mt-12 text-left animate-in fade-in duration-200 font-sans">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="h-12 w-12 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4 dark:bg-purple-500/10"><Lock className="h-6 w-6 text-[#64317C]" /></div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">Secure Terminal Access</h3>
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">Secure Terminal Access</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Enter validation tokens to activate administrative operations.</p>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-mono font-bold uppercase text-slate-500">Staff Account Username</label>
-            <div className="relative">
-              <input 
-                type="text" 
-                value={loginUsername} 
-                onChange={(e) => setLoginUsername(e.target.value)} 
-                placeholder="e.g. Admin" 
-                required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" 
-              />
-            </div>
+            <input 
+              type="text" 
+              value={loginUsername} 
+              onChange={(e) => setLoginUsername(e.target.value)} 
+              placeholder="e.g. Admin" 
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" 
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-mono font-bold uppercase text-slate-500">Security Passcode</label>
             <div className="relative">
               <KeyRound className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              {/* 🛡️ FIXED TS2349: Correctly swapped state call with its corresponding set function */}
               <input 
                 type="password" 
                 value={loginPassword} 
@@ -268,10 +258,10 @@ export function AdminWorkspaceGateway() {
 
   if (isAuthenticated && !tournamentId) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6 text-left animate-in fade-in duration-200">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-6 text-left animate-in fade-in duration-200">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
-            <h2 className="text-xl font-black font-mono uppercase tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-lg sm:text-xl font-black font-mono uppercase tracking-tight text-slate-900 dark:text-white">
               Master Control Switchboard
             </h2>
             <p className="text-xs text-slate-400 mt-1">
@@ -279,18 +269,18 @@ export function AdminWorkspaceGateway() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto shrink-0">
             {activeCachedRole === 'ADMIN' && (
               <button 
                 onClick={() => setShowCreateModal(true)}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 text-xs font-mono font-bold bg-[#088505] text-white px-4 py-2 rounded-xl hover:bg-opacity-90 transition-all shadow-2xs cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-mono font-bold bg-[#088505] text-white px-4 py-2.5 sm:py-2 rounded-xl hover:bg-opacity-90 transition-all shadow-2xs cursor-pointer"
               >
                 <PlusCircle className="h-4 w-4" /> New Tournament
               </button>
             )}
             <button 
               onClick={handleLogout}
-              className="flex-1 sm:flex-initial text-xs font-mono font-black border border-rose-200 bg-rose-50 text-rose-600 px-3 py-2 rounded-xl hover:bg-rose-100 dark:bg-rose-950/20 dark:border-rose-500/20 dark:text-rose-400 cursor-pointer uppercase tracking-wider text-center"
+              className="w-full sm:w-auto text-xs font-mono font-black border border-rose-200 bg-rose-50 text-rose-600 px-4 py-2.5 sm:py-2 rounded-xl hover:bg-rose-100 dark:bg-rose-950/20 dark:border-rose-500/20 dark:text-rose-400 cursor-pointer uppercase tracking-wider text-center"
             >
               Logout
             </button>
@@ -308,7 +298,7 @@ export function AdminWorkspaceGateway() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {assignedTournaments.map((t: Tournament) => (
-              <div key={t.id} className="p-5 bg-white border border-slate-200 rounded-2xl flex flex-col justify-between gap-4 shadow-xs dark:bg-slate-900/40 dark:border-white/5">
+              <div key={t.id} className="p-4 sm:p-5 bg-white border border-slate-200 rounded-2xl flex flex-col justify-between gap-4 shadow-xs dark:bg-slate-900/40 dark:border-white/5">
                 <div>
                   <div className="flex justify-between items-start">
                     <span className={`inline-block px-2 py-0.5 text-[9px] font-mono font-bold rounded mb-2 uppercase tracking-wide ${
@@ -332,7 +322,7 @@ export function AdminWorkspaceGateway() {
                 </div>
                 <button
                   onClick={() => navigate(`/admin/${t.id}`)}
-                  className="w-full bg-slate-900 text-white font-mono font-bold text-xs py-2.5 rounded-xl uppercase tracking-wider hover:bg-[#64317C] transition-all text-center cursor-pointer"
+                  className="w-full bg-slate-900 text-white font-mono font-bold text-xs py-3 sm:py-2.5 rounded-xl uppercase tracking-wider hover:bg-[#64317C] transition-all text-center cursor-pointer"
                 >
                   Launch Control Console ➔
                 </button>
@@ -342,8 +332,8 @@ export function AdminWorkspaceGateway() {
         )}
 
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white border border-slate-200 max-w-xl w-full rounded-2xl p-6 space-y-5 dark:bg-slate-900 dark:border-white/5 animate-in scale-in duration-150 shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
+            <div className="bg-white border border-slate-200 max-w-xl w-full rounded-2xl p-4 sm:p-6 space-y-5 dark:bg-slate-900 dark:border-white/5 animate-in scale-in duration-150 shadow-2xl my-auto">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">Initialize New Tournament</h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">Build a completely clean tournament registry mapping layout.</p>
@@ -358,7 +348,7 @@ export function AdminWorkspaceGateway() {
                   <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Arena Venue Location *</label>
                   <input type="text" placeholder="e.g., Altori Park Court Center" value={newVenue} onChange={(e) => setNewVenue(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Start Date *</label>
                     <input type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
@@ -368,7 +358,7 @@ export function AdminWorkspaceGateway() {
                     <input type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Allocated Courts Capacity</label>
                     <input type="number" min={1} max={24} value={newCourtCount} onChange={(e) => setNewCourtCount(Number(e.target.value))} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
@@ -381,7 +371,7 @@ export function AdminWorkspaceGateway() {
 
                 <div className="flex flex-col gap-1.5 border-t border-slate-100 dark:border-white/5 pt-3">
                   <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Image className="h-3 w-3 text-emerald-500" /> Tournament Card Background Imagery URL</label>
-                  <input type="url" placeholder="https://images.unsplash.com/photo-..." value={newCoverUrl} onChange={(e) => setNewCoverUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-mono text-xs text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-700" />
+                  <input type="url" placeholder="https://images.unsplash.com/photo-..." value={newCoverUrl} onChange={(e) => setNewCoverUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-mono text-xs text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
                 </div>
 
                 <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-white/5 font-mono text-xs font-bold">
@@ -394,8 +384,8 @@ export function AdminWorkspaceGateway() {
         )}
 
         {editingTournament && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white border border-slate-200 max-w-2xl w-full rounded-2xl p-6 space-y-5 dark:bg-slate-900 dark:border-white/5 animate-in scale-in duration-150 shadow-2xl text-left">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
+            <div className="bg-white border border-slate-200 max-w-2xl w-full rounded-2xl p-4 sm:p-6 space-y-5 dark:bg-slate-900 dark:border-white/5 animate-in scale-in duration-150 shadow-2xl text-left my-auto">
               <div className="flex justify-between items-start border-b border-slate-100 dark:border-white/5 pb-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider flex items-center gap-1.5"><Settings className="h-4 w-4 text-purple-500" /> Event Configuration Matrix</h3>
@@ -409,7 +399,7 @@ export function AdminWorkspaceGateway() {
                   <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Tournament Title Identity</label>
                   <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Venue Address</label>
                     <input type="text" value={editVenue} onChange={(e) => setEditVenue(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
@@ -423,7 +413,7 @@ export function AdminWorkspaceGateway() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-mono font-bold text-slate-400 tracking-wider uppercase">Opening Start Date</label>
                     <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
@@ -433,7 +423,7 @@ export function AdminWorkspaceGateway() {
                     <input type="date" value={editEndDate} onChange={(e) => setEditEndDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Total Allocated Courts</label>
                     <input type="number" min={1} max={24} value={editCourtCount} onChange={(e) => setEditCourtCount(Number(e.target.value))} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
@@ -446,12 +436,12 @@ export function AdminWorkspaceGateway() {
 
                 <div className="flex flex-col gap-1.5 border-t border-slate-100 dark:border-white/5 pt-3">
                   <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Image className="h-3 w-3 text-purple-400" /> Tournament Card Background Imagery URL</label>
-                  <input type="url" placeholder="https://images.unsplash.com/photo-..." value={editCoverUrl} onChange={(e) => setEditCoverUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-mono text-xs text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-700" />
+                  <input type="url" placeholder="https://images.unsplash.com/photo-..." value={editCoverUrl} onChange={(e) => setEditCoverUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-mono text-xs text-slate-800 dark:bg-slate-950 dark:border-white/10 dark:text-white focus:outline-none" />
                 </div>
 
-                <div className="p-3 border border-rose-200/60 bg-rose-50/40 rounded-xl dark:bg-rose-950/10 dark:border-rose-500/10 flex items-center justify-between gap-4">
+                <div className="p-3 border border-rose-200/60 bg-rose-50/40 rounded-xl dark:bg-rose-950/10 dark:border-rose-500/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-[11px] text-slate-500 dark:text-slate-400"><b className="text-rose-600 dark:text-rose-400">Danger Zone:</b> Wiping this structural node deletes brackets and all participant rosters.</div>
-                  <button type="button" onClick={handleDeleteTournament} className="bg-rose-600 text-white font-mono font-bold px-3 py-1.5 rounded-lg hover:bg-rose-700 transition-colors cursor-pointer shrink-0 flex items-center gap-1"><Trash2 className="h-3.5 w-3.5" /> Scrub Record</button>
+                  <button type="button" onClick={handleDeleteTournament} className="w-full sm:w-auto bg-rose-600 text-white font-mono font-bold px-3 py-2 rounded-lg hover:bg-rose-700 transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1"><Trash2 className="h-3.5 w-3.5" /> Scrub Record</button>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-white/5 font-mono text-xs font-bold">
@@ -467,21 +457,23 @@ export function AdminWorkspaceGateway() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 mt-4 animate-in fade-in duration-200 text-left">
-      <div className="bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl flex items-center justify-between dark:bg-emerald-500/10 dark:border-emerald-500/20">
+    <div className="w-full max-w-6xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-4 mt-4 animate-in fade-in duration-200 text-left">
+      {/* 🚀 RESPONSIVE UPGRADE: Stack vertically on extra small screens, row spacing adjustment */}
+      <div className="bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between dark:bg-emerald-500/10 dark:border-emerald-500/20">
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold uppercase tracking-wider">
-          <ShieldAlert className="h-4 w-4" /> Operator Mode Secured
+          <ShieldAlert className="h-4 w-4 shrink-0" /> Operator Mode Secured
         </div>
-        <button onClick={handleLogout} className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer uppercase tracking-wider font-bold bg-transparent border-none">LOGOUT</button>
+        <button onClick={handleLogout} className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer uppercase tracking-wider font-bold bg-transparent border-none text-left sm:text-right">LOGOUT</button>
       </div>
       
       <CourtGrid />
 
       {activeCachedRole === 'ADMIN' && (
-        <div className="my-8 flex justify-center">
-          <div className="bg-white border border-slate-200 p-1 rounded-2xl flex flex-wrap justify-center items-center gap-1 shadow-sm dark:bg-slate-900/40 dark:border-white/5">
-            <button onClick={() => setAdminTab('registry')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'registry' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Users className="h-4 w-4" /> Roster & Pools</button>
-            <button onClick={() => setAdminTab('console')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'console' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Unlock className="h-4 w-4" /> Director's Console</button>
+        <div className="my-6 sm:my-8 flex justify-center w-full">
+          {/* 🚀 RESPONSIVE UPGRADE: Make buttons expand layout cleanly on mobile views */}
+          <div className="w-full sm:w-auto bg-white border border-slate-200 p-1 rounded-2xl flex flex-row justify-center items-center gap-1 shadow-sm dark:bg-slate-900/40 dark:border-white/5">
+            <button onClick={() => setAdminTab('registry')} className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'registry' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Users className="h-4 w-4 shrink-0" /> Roster & Pools</button>
+            <button onClick={() => setAdminTab('console')} className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${adminTab === 'console' ? 'bg-purple-50 text-[#64317C] dark:bg-purple-500/10 dark:text-purple-400 shadow-sm' : 'text-slate-500'}`}><Unlock className="h-4 w-4 shrink-0" /> Director's Console</button>
           </div>
         </div>
       )}
