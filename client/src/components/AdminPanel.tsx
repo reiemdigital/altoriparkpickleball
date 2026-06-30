@@ -8,7 +8,6 @@ import {
   ShieldCheck, 
   UserCheck, 
   Smartphone, 
-  Eye, 
   Layers, 
   Settings, 
   Activity,
@@ -91,7 +90,6 @@ export const AdminPanel = () => {
   // Command Console Form Tracking States
   const [courtAssignments, setCourtAssignments] = useState<Record<string, number>>({});
   const [refereeAssignments, setRefereeAssignments] = useState<Record<string, string>>({});
-  const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
   const [announcementMode, setAnnouncementMode] = useState<'short' | 'detailed'>(() => {
     return (localStorage.getItem('tournament_announcement_mode') as 'short' | 'detailed') || 'detailed';
   });
@@ -125,7 +123,7 @@ export const AdminPanel = () => {
   }, []);
 
   const handleToggleAnnouncementMode = (mode: 'short' | 'detailed') => {
-    if (isStaff) return; // Block staff action triggers natively
+    if (isStaff) return; 
     setAnnouncementMode(mode);
     localStorage.setItem('tournament_announcement_mode', mode);
   };
@@ -165,12 +163,8 @@ export const AdminPanel = () => {
     setRefereeAssignments((prev) => ({ ...prev, [matchId]: refName }));
   };
 
-  const togglePinReveal = (matchId: string) => {
-    setRevealedPins(prev => ({ ...prev, [matchId]: !prev[matchId] }));
-  };
-
   const startMatch = async (matchId: string) => {
-    if (isStaff) return; // Fail-silent guard rule wrapper
+    if (isStaff) return; 
     const targetMatch = matches.find(m => m.id === matchId);
     if (!targetMatch) return;
 
@@ -240,61 +234,41 @@ export const AdminPanel = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start animate-in fade-in duration-200">
+      {/* 🚀 UI/UX REFACTOR: Transformed columns layout to asymmetric 12-column grid template layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
         
-        {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS SECURITY PIN TOKENS */}
-        <div className="p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
+        {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP (xl:col-span-5) */}
+        <div className="xl:col-span-5 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
           <h2 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 shrink-0">
-            <ShieldCheck className="h-4 w-4" /> Active Court Access Security Tokens
+            <ShieldCheck className="h-4 w-4" /> Active Court Access Remote Monitors
           </h2>
-
-          {currentlyLiveMatches.length > 0 && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-4 p-3 bg-slate-50 border border-slate-200/60 rounded-xl dark:bg-slate-950 dark:border-white/5 animate-in fade-in duration-200 shrink-0">
-              <span className="text-[10px] font-mono font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                <Smartphone className="h-3 w-3 text-purple-500" /> Active Desktop Remotes:
-              </span>
-              <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
-                {currentlyLiveMatches.map((m) => (
-                  <Link 
-                    key={m.id} 
-                    to={`/referee/${m.id}`} 
-                    className="bg-white border border-slate-200 text-slate-800 text-[11px] font-mono font-bold px-2.5 py-1.5 sm:py-1 rounded-lg hover:border-[#64317C] dark:bg-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-purple-400 transition-colors shadow-3xs flex-1 sm:flex-none text-center"
-                  >
-                    Court 0{m.court_id} ↗
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="flex-1 overflow-y-auto max-h-110 pr-1">
             {currentlyLiveMatches.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500 italic pt-2">No courts are currently running active match sessions.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
                 {currentlyLiveMatches.map((m) => (
-                  <div key={m.id} className="p-3 bg-slate-50 text-slate-900 rounded-xl border border-slate-200/60 font-mono text-xs flex flex-col justify-between gap-2 shadow-sm dark:bg-slate-950 dark:text-white dark:border-white/5">
+                  <div key={m.id} className="p-3 bg-slate-50 text-slate-900 rounded-xl border border-slate-200/60 font-mono text-xs flex flex-col justify-between gap-3 shadow-sm dark:bg-slate-950 dark:text-white dark:border-white/5">
                     <div className="flex justify-between items-center border-b border-slate-200 dark:border-white/5 pb-1.5">
                       <span className="text-purple-600 dark:text-purple-400 font-bold">COURT 0{m.court_id}</span>
                       <span className="text-[10px] text-slate-500 flex items-center gap-1 dark:text-slate-400 truncate max-w-[60%]">
                         <UserCheck className="h-3 w-3 shrink-0" /> <span className="truncate">{m.referee_name || m.refereeName || "Assigned Ref"}</span>
                       </span>
                     </div>
+                    
                     <div className="text-[11px] truncate text-slate-800 font-sans font-semibold dark:text-slate-200 flex flex-col gap-0.5">
                       <div className="truncate">{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
                       <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
                     </div>
-                    <div className="mt-1 flex justify-between items-center bg-slate-100/80 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:bg-black/40 dark:border-white/5">
-                      <span className="text-[9px] uppercase tracking-wider text-slate-500 flex items-center gap-1 dark:text-slate-400"><Smartphone className="h-3 w-3" /> Terminal PIN:</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm tracking-widest text-emerald-600 dark:text-emerald-400">
-                          {revealedPins[m.id] ? (m.pinCode || m.pin_code || "----") : "••••"}
-                        </span>
-                        <button onClick={() => togglePinReveal(m.id)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer" title="Reveal PIN">
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
+
+                    {/* 🚀 REMOVED TERMINAL PIN UI: Replaced with a direct launch action hyperlink shortcut button */}
+                    <Link 
+                      to={`/referee/${m.id}`}
+                      className="w-full bg-[#64317C] text-white font-mono text-[11px] font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 hover:bg-opacity-90 active:scale-[0.98] transition-all text-center shadow-xs cursor-pointer"
+                    >
+                      <Smartphone className="h-3.5 w-3.5" /> Launch Referee Remote ↗
+                    </Link>
                   </div>
                 ))}
               </div>
@@ -302,8 +276,8 @@ export const AdminPanel = () => {
           </div>
         </div>
 
-        {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL */}
-        <div className="p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
+        {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL (xl:col-span-7) */}
+        <div className="xl:col-span-7 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-none dark:bg-slate-900/20 transition-all flex flex-col h-full min-h-130">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
               Director's Command Console
@@ -393,8 +367,6 @@ export const AdminPanel = () => {
                       </div>
 
                       <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto justify-end shrink-0">
-                        
-                        {/* 🛠️ READ-ONLY IMPLEMENTATION: Dropdown and control elements dynamically freeze for STAFF */}
                         <select
                           value={currentSelectedReferee}
                           onChange={(e) => handleRefereeChange(match.id, e.target.value)}
