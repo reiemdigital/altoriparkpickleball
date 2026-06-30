@@ -361,11 +361,18 @@ export const RegistrationPortal = () => {
               </select>
             </div>
 
+            {/* 🚀 REFACTORED: Swapped input requirement to optional state format cleanly */}
             {!isSingles && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-500">Team Identity Name</label>
+                <label className="text-[10px] font-mono font-bold uppercase text-slate-500">
+                  Team Identity Name (Optional)
+                </label>
                 <input 
-                  type="text" value={teamName} onChange={(e) => setTeamName(e.target.value)} required={!isSingles} placeholder="Enter unique team tag"
+                  type="text" 
+                  value={teamName} 
+                  onChange={(e) => setTeamName(e.target.value)} 
+                  required={false} 
+                  placeholder="e.g., Smash Brothers (Defaults to player names if left blank)"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 min-h-[40px]"
                 />
               </div>

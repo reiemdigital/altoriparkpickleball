@@ -34,6 +34,16 @@ export const CourtGrid = () => {
 
   const isAdminView = window.location.pathname.includes('/admin');
 
+  // 🚀 FIXED: Replaced 'any' with explicit structural type constraint to satisfy linting rules cleanly
+  const getTeamLabel = (team: { team_name: string; player1_name?: string; player2_name?: string } | null | undefined) => {
+    if (!team) return "Unknown Team";
+    // Check for the presence of a second player to determine the Doubles view format
+    if (team.player1_name && team.player2_name) {
+      return `${team.player1_name} / ${team.player2_name}`;
+    }
+    return team.team_name || team.player1_name || "Unknown Team";
+  };
+
   const refreshMatches = useCallback(async () => {
     if (!tournamentId) return;
     try {
@@ -86,8 +96,8 @@ export const CourtGrid = () => {
     const currentMode = (localStorage.getItem('tournament_announcement_mode') as 'short' | 'detailed') || 'detailed';
     if (window.speakMatchAnnouncement) {
       window.speakMatchAnnouncement(
-        match.team1?.team_name || "Unknown Team",
-        match.team2?.team_name || "Unknown Team",
+        getTeamLabel(match.team1),
+        getTeamLabel(match.team2),
         match.court_id || 1,
         match.category?.name || "Tournament Division",
         currentMode
@@ -133,8 +143,8 @@ export const CourtGrid = () => {
   const handleDeclareDefault = async (absentTeamNumber: 1 | 2, e: React.MouseEvent) => {
     e.stopPropagation(); 
     if (!selectedMatch) return;
-    const absentTeamName = absentTeamNumber === 1 ? (selectedMatch.team1?.team_name || "Team 1") : (selectedMatch.team2?.team_name || "Team 2");
-    const winningTeamName = absentTeamNumber === 1 ? (selectedMatch.team2?.team_name || "Team 2") : (selectedMatch.team1?.team_name || "Team 1");
+    const absentTeamName = absentTeamNumber === 1 ? getTeamLabel(selectedMatch.team1) : getTeamLabel(selectedMatch.team2);
+    const winningTeamName = absentTeamNumber === 1 ? getTeamLabel(selectedMatch.team2) : getTeamLabel(selectedMatch.team1);
 
     triggerAlert({
       title: "Lock Walkover Default?",
@@ -171,7 +181,6 @@ export const CourtGrid = () => {
 
   return (
     <div className="relative w-full">
-      {/* 🚀 RESPONSIVE UPGRADE: Adjusted dynamic gap tracking from desktop to mobile screen scopes */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {courts.map((num) => {
           const liveMatch = matches.find(m => m.court_id === num && m.status === 'LIVE');
@@ -231,7 +240,7 @@ export const CourtGrid = () => {
                   >
                     <div className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 sm:px-4 py-3 sm:py-4 rounded-xl dark:bg-black/20 dark:border-white/5 min-w-0 gap-2">
                       <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 truncate flex-1">
-                        {liveMatch.team1?.team_name || "Unknown Team"}
+                        {getTeamLabel(liveMatch.team1)}
                       </span>
                       <motion.span 
                         key={liveMatch.team1_score}
@@ -249,7 +258,7 @@ export const CourtGrid = () => {
 
                     <div className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 sm:px-4 py-3 sm:py-4 rounded-xl dark:bg-black/20 dark:border-white/5 min-w-0 gap-2">
                       <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 truncate flex-1">
-                        {liveMatch.team2?.team_name || "Unknown Team"}
+                        {getTeamLabel(liveMatch.team2)}
                       </span>
                       <motion.span 
                         key={liveMatch.team2_score}
@@ -308,7 +317,7 @@ export const CourtGrid = () => {
               <div className="mb-6 text-center">
                 <p className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-1.5">Active Match Session</p>
                 <p className="text-sm font-bold truncate px-2">
-                  {selectedMatch.team1?.team_name || "Unknown Team"} <span className="text-brand-accent">vs</span> {selectedMatch.team2?.team_name || "Unknown Team"}
+                  {getTeamLabel(selectedMatch.team1)} <span className="text-brand-accent">vs</span> {getTeamLabel(selectedMatch.team2)}
                 </p>
                 <p className="text-[10px] font-mono font-bold text-slate-400 uppercase mt-1 truncate px-4">
                   {selectedMatch.category?.name || "General Division"}
@@ -358,7 +367,7 @@ export const CourtGrid = () => {
                         disabled={isProcessing}
                         className="w-full text-left bg-slate-50 border border-slate-200 px-3 py-3 rounded-xl text-xs font-semibold hover:border-rose-400 dark:bg-slate-950 dark:border-white/5 truncate block cursor-pointer transition-colors disabled:opacity-40"
                       >
-                        🚨 Team 1 Absent: <span className="text-rose-500 font-bold ml-1">{selectedMatch.team1?.team_name || "Unknown Team"}</span>
+                        🚨 Team 1 Absent: <span className="text-rose-500 font-bold ml-1">{getTeamLabel(selectedMatch.team1)}</span>
                       </button>
                       
                       <button
@@ -366,7 +375,7 @@ export const CourtGrid = () => {
                         disabled={isProcessing}
                         className="w-full text-left bg-slate-50 border border-slate-200 px-3 py-3 rounded-xl text-xs font-semibold hover:border-rose-400 dark:bg-slate-950 dark:border-white/5 truncate block cursor-pointer transition-colors disabled:opacity-40"
                       >
-                        🚨 Team 2 Absent: <span className="text-rose-500 font-bold ml-1">{selectedMatch.team2?.team_name || "Unknown Team"}</span>
+                        🚨 Team 2 Absent: <span className="text-rose-500 font-bold ml-1">{getTeamLabel(selectedMatch.team2)}</span>
                       </button>
                     </div>
 

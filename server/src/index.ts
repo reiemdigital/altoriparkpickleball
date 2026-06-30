@@ -56,8 +56,8 @@ interface Match {
   bracket_position: 'SF1' | 'SF2' | 'FINALS' | null;
   started_at: string | null;
   ended_at: string | null;
-  team1?: { team_name: string };
-  team2?: { team_name: string };
+  team1?: { team_name: string; player1_name?: string; player2_name?: string };
+  team2?: { team_name: string; player1_name?: string; player2_name?: string };
   category?: { name: string };
 }
 
@@ -614,7 +614,7 @@ app.post('/api/groups/generate', requireAuth(['ADMIN']), async (req: Request, re
       .eq('status', 'PENDING');
 
     if (matchesToInsert.length > 0) {
-      const { error: matchInsertError = supabase } = await supabase.from('matches').insert(matchesToInsert);
+      const { error: matchInsertError } = await supabase.from('matches').insert(matchesToInsert);
       if (matchInsertError) throw matchInsertError;
     }
 
@@ -633,7 +633,6 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
   }
 
   try {
-    // 1. Wipe out all round-robin match entries for this specific tier
     const { error: matchDeleteError } = await supabase
       .from('matches')
       .delete()
@@ -643,7 +642,6 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
 
     if (matchDeleteError) throw matchDeleteError;
 
-    // 2. Perform absolute reset on team performance standing column histories
     const { error: teamUpdateError } = await supabase
       .from('teams')
       .update({ 
@@ -658,7 +656,6 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
 
     if (teamUpdateError) throw teamUpdateError;
 
-    // 3. Broadcast eviction telemetry alerts out to client sockets
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
     io.to(`tournament:${tournamentId}`).emit('standings-refresh');
 
@@ -758,12 +755,13 @@ app.delete('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, r
  * TOURNAMENT OPERATIONS & SCOPED MATCH ROUTES
  * ======================================================= */
 
+// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' metrics down all lookup filters
 app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
     const { data: matches, error } = await supabase
       .from('matches')
-      .select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)')
+      .select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)')
       .eq('tournament_id', tournamentId);
 
     if (error) {
@@ -781,6 +779,7 @@ app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Resp
   }
 });
 
+// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' data dimensions
 app.put('/api/matches/:id/start', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { courtId, refereeName } = req.body;
@@ -839,7 +838,7 @@ app.put('/api/matches/:id/start', requireAuth(['ADMIN', 'STAFF']), async (req: R
         started_at: new Date().toISOString()
       })
       .eq('id', id)
-      .select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)')
+      .select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)')
       .single();
 
     if (uError || !updatedMatch) throw uError;
@@ -858,6 +857,7 @@ app.put('/api/matches/:id/start', requireAuth(['ADMIN', 'STAFF']), async (req: R
   }
 });
 
+// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' data arrays
 app.put('/api/matches/:id/cancel', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -874,7 +874,7 @@ app.put('/api/matches/:id/cancel', requireAuth(['ADMIN']), async (req: Request, 
         team2_score: 0
       })
       .eq('id', id)
-      .select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)')
+      .select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)')
       .single();
 
     if (error) throw error;
@@ -888,6 +888,7 @@ app.put('/api/matches/:id/cancel', requireAuth(['ADMIN']), async (req: Request, 
   }
 });
 
+// 🚀 REFACTORED: Appended player details to allow proper fallback resolutions
 app.put('/api/matches/:id/default', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { absentTeamNum } = req.body; 
@@ -929,7 +930,7 @@ app.put('/api/matches/:id/default', requireAuth(['ADMIN']), async (req: Request,
         team2_score: absentTeamNum === 1 ? 11 : 0
       })
       .eq('id', id)
-      .select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)')
+      .select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)')
       .single();
 
     if (uError) throw uError;
@@ -970,6 +971,7 @@ app.put('/api/matches/:id/default', requireAuth(['ADMIN']), async (req: Request,
   }
 });
 
+// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' constraints to live score trackers
 app.put('/api/matches/:id/score', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { score1, score2 } = req.body;
@@ -979,7 +981,7 @@ app.put('/api/matches/:id/score', async (req: Request, res: Response) => {
       .from('matches')
       .update({ team1_score: parseInt(score1, 10), team2_score: parseInt(score2, 10) })
       .eq('id', id)
-      .select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)')
+      .select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)')
       .single();
 
     if (error) throw error;
@@ -994,6 +996,7 @@ app.put('/api/matches/:id/score', async (req: Request, res: Response) => {
   }
 });
 
+// 🚀 REFACTORED: Appended player details layout mapping vectors to finish handler hooks
 app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -1013,8 +1016,7 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
     const sessionContext = activeLiveSessions[id] || { refereeName: "Official Staff", pinCode: null };
     const officiatingReferee = sessionContext.refereeName;
 
-    const { data: updatedMatch, error: uError } = await supabase
-      .from('matches').update({ status: 'FINISHED', ended_at: new Date().toISOString()}).eq('id', id).select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)').single();
+    const { data: updatedMatch, error: uError } = await supabase.from('matches').update({ status: 'FINISHED', ended_at: new Date().toISOString()}).eq('id', id).select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)').single();
 
     if (uError) throw uError;
     delete activeLiveSessions[id];
@@ -1097,7 +1099,6 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
       .eq('registration_status', 'CONFIRMED'); 
 
     if (error) {
-      // 🚀 FIXED: Repaired the hyphen error configuration from res.status-400) back to normal bounds
       return res.status(400).json({ error: error.message });
     }
 
@@ -1114,12 +1115,13 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
   }
 });
 
+// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' variables to structural history feeds
 app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
     const { data: completedMatches, error } = await supabase
       .from('matches')
-      .select('*, team1:team1_id(team_name), team2:team2_id(team_name), category:category_id(name:category_name)')
+      .select('*, team1:team1_id(team_name, player1_name, player2_name), team2:team2_id(team_name, player1_name, player2_name), category:category_id(name:category_name)')
       .eq('tournament_id', tournamentId)
       .eq('status', 'FINISHED')
       .order('ended_at', { ascending: false });
