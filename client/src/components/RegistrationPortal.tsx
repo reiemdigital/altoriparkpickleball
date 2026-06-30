@@ -40,17 +40,14 @@ interface TeamRosterModel {
 export const RegistrationPortal = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   
-  // Zustand State Hooks
   const standings = useTournamentStore((state) => state.standings) as unknown as TeamRosterModel[];
   const categories = useTournamentStore((state) => state.gatewayData.categories);
   const matches = useTournamentStore((state) => state.matches);
 
-  // Zustand State Mutation Action Setters
   const setStandings = useTournamentStore((state) => state.setStandings);
   const setGatewayData = useTournamentStore((state) => state.setGatewayData);
   const setMatches = useTournamentStore((state) => state.setMatches);
 
-  // Form Fields State
   const [category, setCategory] = useState('');
   const [teamName, setTeamName] = useState('');
   const [player1Name, setPlayer1Name] = useState('');
@@ -59,22 +56,21 @@ export const RegistrationPortal = () => {
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
 
-  // Admin Config States
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [tempMaxSlots, setTempMaxSlots] = useState<number>(16);
   const [tempGroupCount, setTempGroupCount] = useState<number>(1);
 
-  // Inline Team Editing States
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editTeamName, setEditTeamName] = useState<string>('');
 
-  // Administrative Verification States
   const [pendingTeams, setPendingTeams] = useState<TeamRosterModel[]>([]);
   const [isPendingLoading, setIsPendingLoading] = useState(true);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
+  
+  // Explicit transaction lock processing state tracker
+  const [unseedingCatId, setUnseedingCatId] = useState<string | null>(null);
 
-  // 🛠️ LOOKUP LAYER
   const currentCategoryObj = useMemo(() => {
     return categories.find((c: TournamentCategory) => c.category_name === category);
   }, [categories, category]);
@@ -87,7 +83,6 @@ export const RegistrationPortal = () => {
     return currentCategoryObj?.category_type === 'Singles';
   }, [currentCategoryObj]);
 
-  // Unifies state sync updates across store vectors cleanly
   const refreshData = useCallback(async () => {
     if (!tournamentId) return;
     try {
@@ -116,27 +111,20 @@ export const RegistrationPortal = () => {
     }
   }, [tournamentId, setStandings, setGatewayData, setMatches]);
 
-  // Handle baseline initial hydration sequence on mount
   useEffect(() => {
     let deferTask: ReturnType<typeof setTimeout>;
-
     if (tournamentId) {
       deferTask = setTimeout(() => {
         refreshData();
       }, 0);
     }
-
-    socket.on('registration-updated', () => {
-      refreshData();
-    });
-
+    socket.on('registration-updated', () => { refreshData(); });
     return () => {
       if (deferTask) clearTimeout(deferTask);
       socket.off('registration-updated');
     };
   }, [tournamentId, refreshData]);
 
-  // Handle fallback alignment for drop selection values
   useEffect(() => {
     if (categories && categories.length > 0) {
       const isCurrentlySelectedValid = categories.some(c => c.category_name === category);
@@ -206,7 +194,6 @@ export const RegistrationPortal = () => {
         maxSlots: tempMaxSlots, 
         groupCount: tempGroupCount
       }, { withCredentials: true });
-      
       setEditingCategory(null);
       await refreshData();
     } catch (error: unknown) {
@@ -262,32 +249,40 @@ export const RegistrationPortal = () => {
     }
   };
 
-  // 🚀 FIXED/ADDED: Unseeding transaction mutation pipeline
   const handleUnseedCategory = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
 
     const safetyVerification = window.confirm(
-      `🚨 WARNING: UNSEED BRACKETS?\n\nThis will permanently delete ALL generated match schedules, score records, and court logs for the "${catName}" category division.\n\nAll teams will be safely returned to a drag-and-drop draft state for layout re-arrangements. Are you sure you want to proceed?`
+      `🚨 DANGER ZONE: UNSEED BRACKETS?\n\nThis will permanently remove ALL generated match schedules, score logs, and court sessions for the "${catName}" division.\n\nTeams will safely return to a draft layout state. Are you sure you want to proceed?`
     );
 
     if (!safetyVerification) return;
 
     try {
+      setUnseedingCatId(targetCat.category_id);
+      const secureToken = sessionStorage.getItem('altori_admin_token');
+
       const response = await axios.post(`${SOCKET_URL}/api/groups/unseed`, {
         tournamentId,
         categoryId: targetCat.category_id,
         categoryName: catName
-      }, { withCredentials: true });
+      }, {
+        withCredentials: true,
+        headers: secureToken ? { Authorization: `Bearer ${secureToken}` } : {}
+      });
 
-      alert(response.data.message || "Seeding patterns wiped out successfully. Bracket returned to draft state.");
+      alert(response.data.message || "Seeding tables successfully scrubbed. Brackets reset to draft mode.");
       await refreshData();
     } catch (error: unknown) {
+      console.error("❌ Critical Pool Unseeding Error Matrix Details:", error);
       if (axios.isAxiosError(error)) {
         alert(error.response?.data?.error || "Backend failed to safely drop seeded bracket records.");
       } else {
-        alert("An unexpected database connection error occurred trying to unseed pools.");
+        alert("An unexpected network connection error occurred trying to unseed pools.");
       }
+    } finally {
+      setUnseedingCatId(null);
     }
   };
 
@@ -813,13 +808,18 @@ export const RegistrationPortal = () => {
                             </button>
                           )}
 
-                          {/* 🚀 REVISE PLAN IMPLEMENTATION: Unseeding toggle option wrapper layout button */}
                           {isSeeded && (
                             <button
                               onClick={() => handleUnseedCategory(cat)}
-                              className="text-[9px] font-mono font-bold uppercase bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-600 hover:text-white px-2.5 py-2 rounded-lg flex items-center gap-1 transition-all cursor-pointer dark:bg-rose-500/5 dark:border-rose-500/10 dark:hover:bg-rose-600 dark:hover:text-white min-h-[32px]"
+                              disabled={unseedingCatId === catObj.category_id}
+                              className="text-[9px] font-mono font-bold uppercase bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-600 hover:text-white px-2.5 py-2 rounded-lg flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 min-h-[32px]"
                             >
-                              <RotateCcw className="h-2.5 w-2.5 shrink-0 animate-reverse-spin" /> Unseed Pools
+                              {unseedingCatId === catObj.category_id ? (
+                                <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
+                              ) : (
+                                <RotateCcw className="h-2.5 w-2.5 shrink-0" />
+                              )}
+                              {unseedingCatId === catObj.category_id ? "Resetting..." : "Unseed Pools"}
                             </button>
                           )}
                         </div>

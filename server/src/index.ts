@@ -628,6 +628,48 @@ app.post('/api/groups/generate', requireAuth(['ADMIN']), async (req: Request, re
   }
 });
 
+app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+  const { tournamentId, categoryId } = req.body;
+
+  if (!tournamentId || !categoryId) {
+    return res.status(400).json({ error: "Required parameters are missing to execute the unseed command." });
+  }
+
+  try {
+    // 1. Scrub all pending Round Robin matches for this specific tournament tier
+    const { error: matchDeleteError } = await supabase
+      .from('matches')
+      .delete()
+      .eq('tournament_id', tournamentId)
+      .eq('category_id', categoryId)
+      .eq('match_type', 'ROUND_ROBIN')
+      .eq('status', 'PENDING');
+
+    if (matchDeleteError) throw matchDeleteError;
+
+    // 2. Clear the group_id alignments to return teams to the drag-and-drop stage
+    const { error: teamUpdateError } = await supabase
+      .from('teams')
+      .update({ group_id: null })
+      .eq('tournament_id', tournamentId)
+      .eq('category_id', categoryId);
+
+    if (teamUpdateError) throw teamUpdateError;
+
+    // 3. Broadcast real-time cache evictions to all active telemetry nodes
+    io.to(`tournament:${tournamentId}`).emit('registration-updated');
+    io.to(`tournament:${tournamentId}`).emit('standings-refresh');
+
+    return res.json({ 
+      success: true, 
+      message: "Matches deleted successfully. Teams have been reset back to unassigned draft rows." 
+    });
+  } catch (err: any) {
+    console.error("❌ Critical Backend Pool Unseeding Failure:", err);
+    return res.status(500).json({ error: "Failed to clear database seeded records.", details: err?.message });
+  }
+});
+
 app.post('/api/tournaments/:tournamentId/categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   const { 
