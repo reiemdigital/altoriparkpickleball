@@ -24,28 +24,39 @@ export const CourtGrid = () => {
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
 
-  const totalVenueCourts = gatewayData?.tournament?.court_count || 4;
-  const courts = Array.from({ length: totalVenueCourts }, (_, i) => i + 1);
-
-  const isAdminView = window.location.pathname.includes('/admin');
-
+  const [localCourtCount, setLocalCourtCount] = useState<number | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [showDefaultSubMenu, setShowDefaultSubMenu] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  const totalVenueCourts = localCourtCount || gatewayData?.tournament?.court_count || 4;
+  const courts = Array.from({ length: totalVenueCourts }, (_, i) => i + 1);
+
+  const isAdminView = window.location.pathname.includes('/admin');
 
   const refreshMatches = useCallback(async () => {
     if (!tournamentId) return;
     try {
       const res = await axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/matches`);
       setMatches(res.data);
+
+      const gatewayRes = await axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/gateway`);
+      if (gatewayRes.data?.tournament?.court_count) {
+        setLocalCourtCount(gatewayRes.data.tournament.court_count);
+      }
     } catch (err) {
       console.error("Court Grid background refresh transaction failure:", err);
     }
   }, [tournamentId, setMatches]);
 
+  // 🚀 FIXED: Wrapped invocation in a deferred macro-task queue block to clear the ESLint cascading render warning cleanly
   useEffect(() => {
     if (tournamentId) {
-      refreshMatches();
+      const deferFetchTask = setTimeout(() => {
+        refreshMatches();
+      }, 0);
+      
+      return () => clearTimeout(deferFetchTask);
     }
   }, [tournamentId, refreshMatches]);
 
@@ -96,7 +107,6 @@ export const CourtGrid = () => {
       onConfirm: async () => {
         try {
           setIsProcessing(true);
-          // FIXED: Appended empty data object payload and explicitly added authentication credentials context
           await axios.put(`${SOCKET_URL}/api/matches/${selectedMatch.id}/cancel`, {}, { withCredentials: true });
           setSelectedMatch(null);
         } catch (error) {
@@ -134,7 +144,6 @@ export const CourtGrid = () => {
       onConfirm: async () => {
         try {
           setIsProcessing(true);
-          // FIXED: Added operational authorization config parameter rules seamlessly as the third argument
           await axios.put(`${SOCKET_URL}/api/matches/${selectedMatch.id}/default`, {
             absentTeamNum: absentTeamNumber
           }, { withCredentials: true });
@@ -283,7 +292,6 @@ export const CourtGrid = () => {
               <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-3 mb-4">
                 <div className="flex items-center gap-1.5">
                   <ShieldAlert className="h-4 w-4 text-brand-accent" />
-                  {/* FIXED: Standardized string markup syntax tree nodes directly inside JSX */}
                   <span className="text-xs font-mono font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Court 0{selectedMatch.court_id} Control
                   </span>
