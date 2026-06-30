@@ -118,7 +118,6 @@ const requireAuth = (roles?: ('ADMIN' | 'STAFF')[]) => {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: string };
       
-      // Defensive normalization to force uppercase parsing safely
       const normalizedUser = {
         id: decoded.id,
         username: decoded.username,
@@ -269,8 +268,6 @@ app.get('/api/admin/assigned-tournaments', requireAuth(['ADMIN', 'STAFF']), asyn
   if (!req.user) return res.status(401).json({ error: 'Unauthorized profile mapping.' });
 
   try {
-    // 🚀 FIXED: Bypassed structural assignment mapping restrictions entirely. 
-    // Both ADMIN and STAFF users pull the comprehensive list of available contexts cleanly.
     const { data, error } = await supabase
       .from('tournaments')
       .select('*')
@@ -617,7 +614,7 @@ app.post('/api/groups/generate', requireAuth(['ADMIN']), async (req: Request, re
       .eq('status', 'PENDING');
 
     if (matchesToInsert.length > 0) {
-      const { error: matchInsertError } = await supabase.from('matches').insert(matchesToInsert);
+      const { error: matchInsertError = supabase } = await supabase.from('matches').insert(matchesToInsert);
       if (matchInsertError) throw matchInsertError;
     }
 
@@ -636,33 +633,38 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
   }
 
   try {
-    // 1. Scrub all pending Round Robin matches for this specific tournament tier
+    // 1. Wipe out all round-robin match entries for this specific tier
     const { error: matchDeleteError } = await supabase
       .from('matches')
       .delete()
       .eq('tournament_id', tournamentId)
       .eq('category_id', categoryId)
-      .eq('match_type', 'ROUND_ROBIN')
-      .eq('status', 'PENDING');
+      .eq('match_type', 'ROUND_ROBIN');
 
     if (matchDeleteError) throw matchDeleteError;
 
-    // 2. Clear the group_id alignments to return teams to the drag-and-drop stage
+    // 2. Perform absolute reset on team performance standing column histories
     const { error: teamUpdateError } = await supabase
       .from('teams')
-      .update({ group_id: null })
+      .update({ 
+        group_id: null,
+        matches_played: 0,
+        wins: 0,
+        points_for: 0,
+        points_against: 0
+      })
       .eq('tournament_id', tournamentId)
       .eq('category_id', categoryId);
 
     if (teamUpdateError) throw teamUpdateError;
 
-    // 3. Broadcast real-time cache evictions to all active telemetry nodes
+    // 3. Broadcast eviction telemetry alerts out to client sockets
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
     io.to(`tournament:${tournamentId}`).emit('standings-refresh');
 
     return res.json({ 
       success: true, 
-      message: "Matches deleted successfully. Teams have been reset back to unassigned draft rows." 
+      message: "Brackets successfully unseeded. Performance scores and group assignments zeroed out." 
     });
   } catch (err: any) {
     console.error("❌ Critical Backend Pool Unseeding Failure:", err);
@@ -753,7 +755,7 @@ app.delete('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, r
 });
 
 /** =======================================================
- * TOURNAMENT OPERATIONS & ENRICHED SCOPED MATCH ROUTES
+ * TOURNAMENT OPERATIONS & SCOPED MATCH ROUTES
  * ======================================================= */
 
 app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Response) => {
@@ -1095,6 +1097,7 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
       .eq('registration_status', 'CONFIRMED'); 
 
     if (error) {
+      // 🚀 FIXED: Repaired the hyphen error configuration from res.status-400) back to normal bounds
       return res.status(400).json({ error: error.message });
     }
 
