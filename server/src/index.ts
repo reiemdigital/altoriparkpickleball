@@ -219,7 +219,6 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid clearance credentials.' });
     }
 
-    // Force normalized upper token into payload signatures
     const standardizedRole = user.role.toUpperCase();
 
     const token = jwt.sign(
@@ -266,32 +265,19 @@ app.get('/api/tournaments', async (_req: Request, res: Response) => {
   }
 });
 
-app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/admin/assigned-tournaments', requireAuth(['ADMIN', 'STAFF']), async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized profile mapping.' });
 
   try {
-    if (req.user.role === 'ADMIN') {
-      const { data, error } = await supabase
-        .from('tournaments')
-        .select('*')
-        .order('start_date', { ascending: true });
+    // 🚀 FIXED: Bypassed structural assignment mapping restrictions entirely. 
+    // Both ADMIN and STAFF users pull the comprehensive list of available contexts cleanly.
+    const { data, error } = await supabase
+      .from('tournaments')
+      .select('*')
+      .order('start_date', { ascending: true });
 
-      if (error) return res.status(400).json({ error: error.message });
-      return res.json(data);
-    }
-
-    const { data: assignments, error: assignError } = await supabase
-      .from('tournament_assignments')
-      .select('tournament_id, tournaments(*)')
-      .eq('user_id', req.user.id);
-
-    if (assignError) return res.status(400).json({ error: assignError.message });
-
-    const filteredTournaments = (assignments || [])
-      .map((item: any) => item.tournaments)
-      .filter(Boolean);
-
-    return res.json(filteredTournaments);
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
   } catch {
     return res.status(500).json({ error: 'Failed compiling authorized tournament matrix vectors.' });
   }
@@ -299,13 +285,11 @@ app.get('/api/admin/assigned-tournaments', requireAuth(), async (req: Authentica
 
 app.get('/api/admin/staff', requireAuth(['ADMIN', 'STAFF']), async (_req: Request, res: Response) => {
   try {
-    // 🛡️ Switch explicit strings to '*' to stop structural table schema mismatches from crashing the request
     const { data, error } = await supabase
       .from('staff_profiles')
       .select('*');
 
     if (error) {
-      // 🔥 CRITICAL: This print trace reveals the exact architectural mismatch message inside your server terminal
       console.error("❌ Supabase Staff Query Database Failure:", error.message, error.details);
       return res.status(400).json({ error: error.message });
     }
@@ -551,6 +535,96 @@ app.post('/api/tournaments/:id/seed-categories', requireAuth(['ADMIN']), async (
     return res.json({ success: true, message: "Tournament dynamic categories seeded cleanly." });
   } catch {
     return res.status(500).json({ error: "Failed seeding tournament metadata matrix." });
+  }
+});
+
+app.post('/api/groups/auto-allocate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+  const { tournamentId, categoryId, groupCount } = req.body;
+  try {
+    const { data: teams, error } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('category_id', categoryId)
+      .eq('registration_status', 'CONFIRMED');
+
+    if (error || !teams) throw error;
+
+    const GROUP_LABELS = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"];
+    const activeLabels = GROUP_LABELS.slice(0, groupCount || 4);
+
+    for (let i = 0; i < teams.length; i++) {
+      const targetLabel = activeLabels[i % activeLabels.length];
+      await supabase.from('teams').update({ group_id: targetLabel }).eq('id', teams[i].id);
+    }
+
+    io.to(`tournament:${tournamentId}`).emit('registration-updated');
+    io.to(`tournament:${tournamentId}`).emit('standings-refresh');
+    return res.json({ success: true, message: "Draft boards auto-populated and distributed evenly!" });
+  } catch {
+    return res.status(500).json({ error: "Group allocation auto-split calculation error encountered." });
+  }
+});
+
+app.post('/api/groups/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+  const { tournamentId, categoryId } = req.body;
+  try {
+    const { data: teams } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('category_id', categoryId)
+      .eq('registration_status', 'CONFIRMED');
+
+    if (!teams || teams.length === 0) {
+      return res.status(400).json({ error: "Roster empty. Cannot generate rounds for zero entrants." });
+    }
+
+    const activeAssignedTeams = teams.filter((t) => t.group_id && t.group_id !== 'Unassigned');
+    
+    const groupBuckets: Record<string, typeof teams> = {};
+    activeAssignedTeams.forEach((team) => {
+      if (!groupBuckets[team.group_id!]) groupBuckets[team.group_id!] = [];
+      groupBuckets[team.group_id!].push(team);
+    });
+
+    const matchesToInsert = [];
+
+    for (const groupLabel of Object.keys(groupBuckets)) {
+      const poolTeams = groupBuckets[groupLabel];
+      for (let i = 0; i < poolTeams.length; i++) {
+        for (let j = i + 1; j < poolTeams.length; j++) {
+          matchesToInsert.push({
+            tournament_id: tournamentId,
+            category_id: categoryId,
+            team1_id: poolTeams[i].id,
+            team2_id: poolTeams[j].id,
+            match_type: 'ROUND_ROBIN',
+            status: 'PENDING',
+            team1_score: 0,
+            team2_score: 0
+          });
+        }
+      }
+    }
+
+    await supabase
+      .from('matches')
+      .delete()
+      .eq('tournament_id', tournamentId)
+      .eq('category_id', categoryId)
+      .eq('match_type', 'ROUND_ROBIN')
+      .eq('status', 'PENDING');
+
+    if (matchesToInsert.length > 0) {
+      const { error: matchInsertError } = await supabase.from('matches').insert(matchesToInsert);
+      if (matchInsertError) throw matchInsertError;
+    }
+
+    io.to(`tournament:${tournamentId}`).emit('standings-refresh');
+    return res.json({ success: true, message: `Successfully committed pools and generated ${matchesToInsert.length} Round Robin fixtures!` });
+  } catch {
+    return res.status(500).json({ error: "Failed to compile group generation schedule parameters." });
   }
 });
 
@@ -1018,7 +1092,6 @@ app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, r
  * REGISTRATION, POOLS, & AUTOMATED PLAYOFF GENERATORS
  * ======================================================= */
 
-// ⚡ REFACTOR UPGRADE: High-performance dual-method endpoint resolving manual vs automated trees
 app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId, seedingMethod, customSeeds } = req.body;
   if (!tournamentId || !categoryId) return res.status(400).json({ error: "Required mapping variables missing." });
@@ -1042,13 +1115,11 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
     let team2_SF2_id: string | null = null;
 
     if (seedingMethod === 'MANUAL' && customSeeds) {
-      // Direct variable structural mapping parsing out values passed straight from our DragGrid view
       team1_SF1_id = customSeeds.SF1_T1_id;
       team2_SF1_id = customSeeds.SF1_T2_id;
       team1_SF2_id = customSeeds.SF2_T1_id;
       team2_SF2_id = customSeeds.SF2_T2_id;
     } else {
-      // AUTOMATIC CALCULATION MODEL FALLBACK
       const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId).eq('registration_status', 'CONFIRMED');
       if (!teams || teams.length < 4) {
         return res.status(400).json({ error: "Insufficient team datasets. Minimum 4 contenders required." });
@@ -1252,96 +1323,6 @@ app.put('/api/teams/:id/group', requireAuth(['ADMIN', 'STAFF']), async (req: Req
     return res.json(updatedTeam);
   } catch {
     return res.status(500).json({ error: "Failed to persist structural drag-and-drop pool alignment modifications." });
-  }
-});
-
-app.post('/api/groups/auto-allocate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
-  const { tournamentId, categoryId, groupCount } = req.body;
-  try {
-    const { data: teams, error } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('tournament_id', tournamentId)
-      .eq('category_id', categoryId)
-      .eq('registration_status', 'CONFIRMED');
-
-    if (error || !teams) throw error;
-
-    const GROUP_LABELS = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"];
-    const activeLabels = GROUP_LABELS.slice(0, groupCount || 4);
-
-    for (let i = 0; i < teams.length; i++) {
-      const targetLabel = activeLabels[i % activeLabels.length];
-      await supabase.from('teams').update({ group_id: targetLabel }).eq('id', teams[i].id);
-    }
-
-    io.to(`tournament:${tournamentId}`).emit('registration-updated');
-    io.to(`tournament:${tournamentId}`).emit('standings-refresh');
-    return res.json({ success: true, message: "Draft boards auto-populated and distributed evenly!" });
-  } catch {
-    return res.status(500).json({ error: "Group allocation auto-split calculation error encountered." });
-  }
-});
-
-app.post('/api/groups/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
-  const { tournamentId, categoryId } = req.body;
-  try {
-    const { data: teams } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('tournament_id', tournamentId)
-      .eq('category_id', categoryId)
-      .eq('registration_status', 'CONFIRMED');
-
-    if (!teams || teams.length === 0) {
-      return res.status(400).json({ error: "Roster empty. Cannot generate rounds for zero entrants." });
-    }
-
-    const activeAssignedTeams = teams.filter((t) => t.group_id && t.group_id !== 'Unassigned');
-    
-    const groupBuckets: Record<string, typeof teams> = {};
-    activeAssignedTeams.forEach((team) => {
-      if (!groupBuckets[team.group_id!]) groupBuckets[team.group_id!] = [];
-      groupBuckets[team.group_id!].push(team);
-    });
-
-    const matchesToInsert = [];
-
-    for (const groupLabel of Object.keys(groupBuckets)) {
-      const poolTeams = groupBuckets[groupLabel];
-      for (let i = 0; i < poolTeams.length; i++) {
-        for (let j = i + 1; j < poolTeams.length; j++) {
-          matchesToInsert.push({
-            tournament_id: tournamentId,
-            category_id: categoryId,
-            team1_id: poolTeams[i].id,
-            team2_id: poolTeams[j].id,
-            match_type: 'ROUND_ROBIN',
-            status: 'PENDING',
-            team1_score: 0,
-            team2_score: 0
-          });
-        }
-      }
-    }
-
-    await supabase
-      .from('matches')
-      .delete()
-      .eq('tournament_id', tournamentId)
-      .eq('category_id', categoryId)
-      .eq('match_type', 'ROUND_ROBIN')
-      .eq('status', 'PENDING');
-
-    if (matchesToInsert.length > 0) {
-      const { error: matchInsertError } = await supabase.from('matches').insert(matchesToInsert);
-      if (matchInsertError) throw matchInsertError;
-    }
-
-    io.to(`tournament:${tournamentId}`).emit('standings-refresh');
-    return res.json({ success: true, message: `Successfully committed pools and generated ${matchesToInsert.length} Round Robin fixtures!` });
-  } catch {
-    return res.status(500).json({ error: "Failed to compile group generation schedule parameters." });
   }
 });
 
