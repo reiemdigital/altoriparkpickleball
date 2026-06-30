@@ -1,12 +1,12 @@
 // client/src/components/RefereePortal.tsx
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 // FIXED: Imported the Match type interface contract directly to clear the linter warning
 import { useTournamentStore, type Match } from '../store/useTournamentStore.js';
 import axios from 'axios';
 import { io } from 'socket.io-client'; 
 import { SOCKET_URL } from '../socket';
-import { ChevronLeft, CheckCircle2, ShieldAlert, Award, Plus, Minus } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, ShieldAlert, Award, Plus, Minus, AlertTriangle, X } from 'lucide-react';
 
 interface CustomMatchExtension {
   id: string;
@@ -35,6 +35,10 @@ export const RefereePortal = () => {
   const updateMatch = useTournamentStore((state) => state.updateMatch);
   
   const currentMatch = matches.find((m) => m.id === matchId);
+
+  // 🛠️ CUSTOM ALERT MODAL STATE TRACKING
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Localized WebSocket lifecycle observer syncs standalone handheld controllers
   useEffect(() => {
@@ -65,8 +69,8 @@ export const RefereePortal = () => {
     : '/admin';
 
   const adjustScore = async (teamNum: 1 | 2, amount: number) => {
-    // Stop adjustments if the match is already locked/finished
-    if (!currentMatch || currentMatch.status === 'FINISHED') return;
+    // Stop adjustments if the match is already locked/finished or during submission lock
+    if (!currentMatch || currentMatch.status === 'FINISHED' || isSubmitting) return;
     
     let s1 = currentMatch.team1_score ?? currentMatch.score1 ?? 0;
     let s2 = currentMatch.team2_score ?? currentMatch.score2 ?? 0;
@@ -84,17 +88,22 @@ export const RefereePortal = () => {
     }
   };
 
-  const finalizeMatch = async () => {
+  // Stage 1: Trigger confirmation modal state toggle overlay open
+  const finalizeMatch = () => {
     if (!currentMatch || currentMatch.status === 'FINISHED') return;
-    if (!window.confirm("🚨 LOCK SCORES? Are you sure this match is complete? Final scores will be locked permanently into tournament standings.")) return;
+    setShowConfirmModal(true);
+  };
 
-    // Cache target route before unmounting schemas inside store modifications
+  // Stage 2: Execute async network payload requests on final user approval
+  const executeFinalize = async () => {
+    if (!currentMatch) return;
+    setIsSubmitting(true);
+    setShowConfirmModal(false);
+
     const targetedRedirect = exitTargetRoute;
 
     try {
       await axios.put(`${SOCKET_URL}/api/matches/${currentMatch.id}/finish`);
-      
-      // 🚀 Fix approach: Routes cleanly back into the designated console workspace
       navigate(targetedRedirect);
     } catch (error: unknown) {
       console.error("Failed to execute final lifecycle check:", error);
@@ -103,6 +112,8 @@ export const RefereePortal = () => {
       } else {
         alert("An unexpected exception network state blocked scorecard submittal.");
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -115,7 +126,6 @@ export const RefereePortal = () => {
         <p className="text-sm font-mono font-bold text-slate-200 mb-2 uppercase tracking-wide">Session Terminated</p>
         <p className="text-xs text-slate-500 max-w-xs mb-6">Match session not found or has already been finalized by tournament controllers.</p>
         
-        {/* 🚀 Fix approach: Modified to route back to general administrative gateway safely */}
         <button 
           onClick={() => navigate('/admin')} 
           className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider uppercase text-slate-300 active:scale-95 transition-all cursor-pointer"
@@ -138,10 +148,10 @@ export const RefereePortal = () => {
   const displayRefereeName = currentMatch.refereeName || currentMatch.referee_name || "Official Staff";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col selection:bg-brand-accent/20 select-none touch-manipulation">
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col selection:bg-brand-accent/20 select-none touch-manipulation relative">
+      
       {/* HEADER CONTROL BAR */}
       <header className="px-4 py-3.5 border-b border-white/5 bg-slate-900/20 backdrop-blur-md flex justify-between items-center sticky top-0 z-50">
-        {/* 🚀 Fix approach: Modifies the top bar back click to safely return to active director views */}
         <button 
           onClick={() => navigate(exitTargetRoute)} 
           className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 active:text-white transition-colors cursor-pointer bg-transparent border-none focus:outline-none"
@@ -171,11 +181,11 @@ export const RefereePortal = () => {
             <h2 className="text-base font-black text-white tracking-tight truncate">{displayTeam1Name}</h2>
           </div>
           <div className="flex items-center justify-between gap-4 w-full mt-auto h-24">
-            <button onClick={() => adjustScore(1, -1)} className="h-20 w-16 bg-slate-800 border border-white/5 rounded-xl flex items-center justify-center active:bg-slate-700 text-slate-300 transition-colors cursor-pointer">
+            <button onClick={() => adjustScore(1, -1)} disabled={isSubmitting} className="h-20 w-16 bg-slate-800 border border-white/5 rounded-xl flex items-center justify-center active:bg-slate-700 text-slate-300 transition-colors cursor-pointer disabled:opacity-40">
               <Minus className="h-5 w-5 stroke-[3]" />
             </button>
             <span className="text-7xl font-black font-mono tracking-tighter text-white w-20 text-center">{team1ActiveScore}</span>
-            <button onClick={() => adjustScore(1, 1)} className="h-20 flex-1 bg-gradient-to-r from-brand-accent to-purple-600 text-white rounded-xl flex items-center justify-center gap-1 active:scale-[0.97] text-sm font-black tracking-wider uppercase transition-transform shadow-md shadow-brand-accent/10 cursor-pointer">
+            <button onClick={() => adjustScore(1, 1)} disabled={isSubmitting} className="h-20 flex-1 bg-gradient-to-r from-brand-accent to-purple-600 text-white rounded-xl flex items-center justify-center gap-1 active:scale-[0.97] text-sm font-black tracking-wider uppercase transition-transform shadow-md shadow-brand-accent/10 cursor-pointer disabled:opacity-40">
               <Plus className="h-4 w-4 stroke-[4]" /> Point
             </button>
           </div>
@@ -193,11 +203,11 @@ export const RefereePortal = () => {
             <h2 className="text-base font-black text-white tracking-tight truncate">{displayTeam2Name}</h2>
           </div>
           <div className="flex items-center justify-between gap-4 w-full mt-auto h-24">
-            <button onClick={() => adjustScore(2, -1)} className="h-20 w-16 bg-slate-800 border border-white/5 rounded-xl flex items-center justify-center active:bg-slate-700 text-slate-300 transition-colors cursor-pointer">
+            <button onClick={() => adjustScore(2, -1)} disabled={isSubmitting} className="h-20 w-16 bg-slate-800 border border-white/5 rounded-xl flex items-center justify-center active:bg-slate-700 text-slate-300 transition-colors cursor-pointer disabled:opacity-40">
               <Minus className="h-5 w-5 stroke-[3]" />
             </button>
             <span className="text-7xl font-black font-mono tracking-tighter text-white w-20 text-center">{team2ActiveScore}</span>
-            <button onClick={() => adjustScore(2, 1)} className="h-20 flex-1 bg-gradient-to-r from-brand-accent to-purple-600 text-white rounded-xl flex items-center justify-center gap-1 active:scale-[0.97] text-sm font-black tracking-wider uppercase transition-transform shadow-md shadow-brand-accent/10 cursor-pointer">
+            <button onClick={() => adjustScore(2, 1)} disabled={isSubmitting} className="h-20 flex-1 bg-gradient-to-r from-brand-accent to-purple-600 text-white rounded-xl flex items-center justify-center gap-1 active:scale-[0.97] text-sm font-black tracking-wider uppercase transition-transform shadow-md shadow-brand-accent/10 cursor-pointer disabled:opacity-40">
               <Plus className="h-4 w-4 stroke-[4]" /> Point
             </button>
           </div>
@@ -207,13 +217,73 @@ export const RefereePortal = () => {
         <div className="mt-2 p-1.5 border border-dashed border-emerald-500/20 bg-emerald-500/[0.02] rounded-2xl">
           <button
             onClick={finalizeMatch}
-            className="w-full bg-emerald-500 text-slate-950 font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-400 active:scale-[0.99] text-xs font-mono tracking-widest uppercase transition-all shadow-lg shadow-emerald-500/10 cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full bg-emerald-500 text-slate-950 font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-400 active:scale-[0.99] text-xs font-mono tracking-widest uppercase transition-all shadow-lg shadow-emerald-500/10 cursor-pointer disabled:opacity-40"
           >
-            <CheckCircle2 className="h-4 w-4 stroke-[2.5]" /> Submit Official Scorecard
+            <CheckCircle2 className="h-4 w-4 stroke-[2.5]" /> {isSubmitting ? "Processing..." : "Submit Official Scorecard"}
           </button>
         </div>
 
       </div>
+
+      {/* 🚀 HIGH-ALERT EXPERT UI MODAL POPUP ALERT OVERLAY LAYER */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-999 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-white/10 max-w-sm w-full rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in scale-in duration-200">
+            
+            <div className="flex justify-between items-center w-full shrink-0">
+              <span className="text-[9px] font-mono font-black tracking-widest text-amber-500 uppercase flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5" /> Standing Integrity Verification
+              </span>
+              <button 
+                onClick={() => setShowConfirmModal(false)}
+                className="text-slate-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-slate-100">Permanent Lock Score?</h3>
+              <p className="text-xs text-slate-400 leading-relaxed font-sans px-1">
+                Are you completely certain this match setup is concluded? Final stats will be locked permanently into tournament standings logs.
+              </p>
+            </div>
+
+            {/* Current Score State Preview Sub-block */}
+            <div className="bg-slate-950 rounded-2xl p-3 border border-white/5 font-mono flex items-center justify-around gap-2 my-2">
+              <div className="text-left max-w-[40%] truncate">
+                <div className="text-[10px] text-slate-500 uppercase truncate">T1</div>
+                <div className="text-xs font-bold text-slate-300 truncate">{displayTeam1Name}</div>
+              </div>
+              <div className="text-lg font-black text-brand-accent font-mono shrink-0">
+                {team1ActiveScore} <span className="text-xs font-normal text-slate-600 mx-1">:</span> {team2ActiveScore}
+              </div>
+              <div className="text-right max-w-[40%] truncate">
+                <div className="text-[10px] text-slate-500 uppercase truncate">T2</div>
+                <div className="text-xs font-bold text-slate-300 truncate">{displayTeam2Name}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1 font-mono text-xs font-bold uppercase tracking-wider">
+              <button
+                onClick={executeFinalize}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 py-3.5 rounded-xl active:scale-[0.98] transition-transform shadow-md shadow-emerald-500/10 cursor-pointer"
+              >
+                Confirm & Lock Standings
+              </button>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="w-full bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 py-3 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
