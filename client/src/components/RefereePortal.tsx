@@ -1,12 +1,12 @@
 // client/src/components/RefereePortal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 // FIXED: Imported the Match type interface contract directly to clear the linter warning
 import { useTournamentStore, type Match } from '../store/useTournamentStore.js';
 import axios from 'axios';
 import { io } from 'socket.io-client'; 
 import { SOCKET_URL } from '../socket';
-import { ChevronLeft, CheckCircle2, ShieldAlert, Award, Plus, Minus, KeyRound, Lock } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, ShieldAlert, Award, Plus, Minus } from 'lucide-react';
 
 interface CustomMatchExtension {
   id: string;
@@ -24,8 +24,6 @@ interface CustomMatchExtension {
   team2: { team_name?: string; name?: string };
   refereeName?: string;
   referee_name?: string;
-  pinCode?: string;
-  pin_code?: string;
 }
 
 export const RefereePortal = () => {
@@ -37,13 +35,6 @@ export const RefereePortal = () => {
   const updateMatch = useTournamentStore((state) => state.updateMatch);
   
   const currentMatch = matches.find((m) => m.id === matchId);
-
-  // 1. Core verification state tracking
-  const [pinInput, setPinInput] = useState('');
-  const [localTokenVerified, setLocalTokenVerified] = useState<boolean>(() => {
-    return localStorage.getItem(`auth_token_match_${matchId}`) === 'true';
-  });
-  const [pinError, setPinError] = useState(false);
 
   // Localized WebSocket lifecycle observer syncs standalone handheld controllers
   useEffect(() => {
@@ -68,28 +59,14 @@ export const RefereePortal = () => {
     };
   }, [matchId, currentMatch, updateMatch]);
 
-  // 2. Derived State Pattern with Defensive Key Resolutions
-  const isTokenVerified = currentMatch && currentMatch.status !== 'FINISHED' ? localTokenVerified : false;
-  const matchPin = currentMatch?.pinCode || currentMatch?.pin_code;
-
   // 🛠️ DEFENSIVE ARCHITECTURAL APPROACH: Safe variable route target computations
   const exitTargetRoute = currentMatch?.tournament_id 
     ? `/admin/${currentMatch.tournament_id}` 
     : '/admin';
 
-  const handleVerifyPin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (currentMatch && matchPin && pinInput.trim() === matchPin.toString().trim()) {
-      setLocalTokenVerified(true);
-      setPinError(false);
-      localStorage.setItem(`auth_token_match_${matchId}`, 'true');
-    } else {
-      setPinError(true);
-    }
-  };
-
   const adjustScore = async (teamNum: 1 | 2, amount: number) => {
-    if (!currentMatch || !isTokenVerified) return;
+    // Stop adjustments if the match is already locked/finished
+    if (!currentMatch || currentMatch.status === 'FINISHED') return;
     
     let s1 = currentMatch.team1_score ?? currentMatch.score1 ?? 0;
     let s2 = currentMatch.team2_score ?? currentMatch.score2 ?? 0;
@@ -108,7 +85,7 @@ export const RefereePortal = () => {
   };
 
   const finalizeMatch = async () => {
-    if (!currentMatch || !isTokenVerified) return;
+    if (!currentMatch || currentMatch.status === 'FINISHED') return;
     if (!window.confirm("🚨 LOCK SCORES? Are you sure this match is complete? Final scores will be locked permanently into tournament standings.")) return;
 
     // Cache target route before unmounting schemas inside store modifications
@@ -116,8 +93,6 @@ export const RefereePortal = () => {
 
     try {
       await axios.put(`${SOCKET_URL}/api/matches/${currentMatch.id}/finish`);
-      localStorage.removeItem(`auth_token_match_${matchId}`); 
-      setLocalTokenVerified(false); 
       
       // 🚀 Fix approach: Routes cleanly back into the designated console workspace
       navigate(targetedRedirect);
@@ -151,55 +126,7 @@ export const RefereePortal = () => {
     );
   }
 
-  /* GATEKEEPER INTERCEPTION RENDER LAYER */
   const displayCourtId = currentMatch.court_id ?? currentMatch.courtId ?? 0;
-
-  if (!isTokenVerified) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-center items-center p-4 select-none">
-        <div className="max-w-md w-full p-8 bg-slate-900 border border-white/5 rounded-3xl shadow-2xl text-center">
-          <div className="h-12 w-12 bg-brand-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-brand-accent/20">
-            <Lock className="h-5 w-5 text-brand-accent" />
-          </div>
-          <h3 className="text-lg font-bold font-mono uppercase tracking-wider text-slate-100">Court Secure Gate</h3>
-          <p className="text-xs text-slate-400 mt-1 mb-6">Enter the 4-digit terminal access PIN provided by the Tournament Director for Court 0{displayCourtId}.</p>
-
-          <form onSubmit={handleVerifyPin} className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <div className="relative">
-                <KeyRound className="h-4 w-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input 
-                  type="text" 
-                  pattern="[0-9]*"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={pinInput} 
-                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-center font-mono font-black text-xl tracking-[0.5em] text-brand-accent focus:outline-none focus:border-brand-accent"
-                  autoFocus
-                />
-              </div>
-              {pinError && <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider mt-1 block">Invalid Court Token. Access Blocked.</span>}
-            </div>
-
-            <button type="submit" className="w-full mt-2 bg-gradient-to-r from-brand-accent to-purple-600 text-white font-bold font-mono py-3.5 rounded-xl text-xs tracking-widest uppercase transition-all shadow-md shadow-brand-accent/10 active:scale-95 cursor-pointer">
-              Verify Controller Identity
-            </button>
-          </form>
-          
-          {/* 🚀 Fix approach: Redirects back to the originating active console template link */}
-          <button 
-            onClick={() => navigate(exitTargetRoute)} 
-            className="text-[10px] font-mono text-slate-500 hover:text-slate-400 uppercase tracking-widest mt-6 block mx-auto transition-colors cursor-pointer bg-transparent border-none focus:outline-none"
-          >
-            Exit Terminal
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const team1ActiveScore = currentMatch.team1_score ?? currentMatch.score1 ?? 0;
   const team2ActiveScore = currentMatch.team2_score ?? currentMatch.score2 ?? 0;
 
