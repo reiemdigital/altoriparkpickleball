@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { useTournamentStore } from '../store/useTournamentStore';
 import type { TournamentCategory } from '../store/useTournamentStore';
+import { useAlertStore } from '../store/useAlertStore'; 
 import { SOCKET_URL, socket } from '../socket';
 import { 
   UserPlus, Settings2, Users, Layers, Play, Trash2, Edit2, 
@@ -47,6 +48,9 @@ export const RegistrationPortal = () => {
   const setStandings = useTournamentStore((state) => state.setStandings);
   const setGatewayData = useTournamentStore((state) => state.setGatewayData);
   const setMatches = useTournamentStore((state) => state.setMatches);
+  
+  // 🚀 REFACTORED: Hook into the central layout modal trigger pipeline
+  const triggerAlert = useAlertStore((state) => state.triggerAlert);
 
   const [category, setCategory] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -68,7 +72,6 @@ export const RegistrationPortal = () => {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
   
-  // Explicit transaction lock processing state tracker
   const [unseedingCatId, setUnseedingCatId] = useState<string | null>(null);
 
   const currentCategoryObj = useMemo(() => {
@@ -137,10 +140,15 @@ export const RegistrationPortal = () => {
     }
   }, [categories, category]);
 
+  // 🚀 REFACTORED: Converted standard browser blocks to triggerAlert instances safely
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tournamentId || !currentCategoryId) {
-      alert("Validation Exception: Missing active tournament scope parameters or invalid category identification mapping.");
+      triggerAlert({
+        title: "Validation Exception",
+        message: "Missing active tournament scope parameters or invalid category identification mapping.",
+        type: "error"
+      });
       return;
     }
     try {
@@ -157,31 +165,54 @@ export const RegistrationPortal = () => {
       });
       setTeamName(''); setPlayer1Name(''); setPlayer2Name('');
       setContactNo(''); setAddress(''); setEmail('');
-      alert("Registration saved and synced successfully!");
+      
+      triggerAlert({
+        title: "Registration Confirmed",
+        message: "Registration saved and synced successfully!",
+        type: "success"
+      });
       await refreshData();
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.error || "Registration exception encountered.");
+        triggerAlert({
+          title: "Registration Denied",
+          message: error.response?.data?.error || "Registration exception encountered.",
+          type: "error"
+        });
       } else {
-        alert("An unexpected registration error occurred.");
+        triggerAlert({
+          title: "System Exception",
+          message: "An unexpected registration error occurred.",
+          type: "error"
+        });
       }
     }
   };
 
+  // 🚀 REFACTORED: Converted standard alert to triggerAlert
   const handleApprovePayment = async (teamId: string) => {
     setVerifyingId(teamId);
     try {
       await axios.put(`${SOCKET_URL}/api/admin/teams/${teamId}/verify-payment`, {}, { withCredentials: true });
-      alert("Participant payment approved. Team context seeded into the live roster pool!");
+      triggerAlert({
+        title: "Voucher Confirmed",
+        message: "Participant payment approved. Team context seeded into the live roster pool!",
+        type: "success"
+      });
       await refreshData();
     } catch (err) {
       console.error("Payment confirmation loop block:", err);
-      alert("Operational Block: Verification route failed to complete state mutation.");
+      triggerAlert({
+        title: "Verification Failed",
+        message: "Operational Block: Verification route failed to complete state mutation.",
+        type: "error"
+      });
     } finally {
       setVerifyingId(null);
     }
   };
 
+  // 🚀 REFACTORED: Converted standard alerts to triggerAlert
   const handleUpdateConfig = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
@@ -198,13 +229,22 @@ export const RegistrationPortal = () => {
       await refreshData();
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        alert(`Configuration Error: ${error.response?.data?.error || error.message}`);
+        triggerAlert({
+          title: "Configuration Error",
+          message: `Configuration Error: ${error.response?.data?.error || error.message}`,
+          type: "error"
+        });
       } else {
-        alert("An unexpected configuration error occurred.");
+        triggerAlert({
+          title: "System Exception",
+          message: "An unexpected configuration error occurred.",
+          type: "error"
+        });
       }
     }
   };
 
+  // 🚀 REFACTORED: Intercepted response.data.message to display in triggerAlert modal
   const handleAutoAllocateGroups = async (catName: string, targetGroups: number) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
@@ -216,86 +256,145 @@ export const RegistrationPortal = () => {
         categoryName: catName, 
         groupCount: targetGroups
       },{withCredentials: true});
-      alert(response.data.message);
+      
+      triggerAlert({
+        title: "Allocation Complete",
+        message: response.data.message || "Draft boards auto-populated and distributed evenly!",
+        type: "success"
+      });
       await refreshData();
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.error || "Failed to auto-allocate group splits.");
+        triggerAlert({
+          title: "Allocation Failed",
+          message: error.response?.data?.error || "Failed to auto-allocate group splits.",
+          type: "error"
+        });
       } else {
-        alert("An unexpected error occurred during allocation.");
+        triggerAlert({
+          title: "System Error",
+          message: "An unexpected error occurred during allocation.",
+          type: "error"
+        });
       }
     }
   };
 
+  // 🚀 REFACTORED: Migrated confirm and catch statements to non-blocking theme layers
   const handleCommitSeedPools = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
 
-    if (!window.confirm(`⚠️ LOCK POOLS? This will lock current group layouts for ${catName} and generate all official Round Robin matches. Proceed?`)) return;
-    try {
-      const response = await axios.post(`${SOCKET_URL}/api/groups/generate`, {
-        tournamentId,
-        categoryId: targetCat.category_id,
-        categoryName: catName
-      });
-      alert(response.data.message);
-      await refreshData();
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.error || "Failed to commit official seed fixtures.");
-      } else {
-        alert("An unexpected scheduling error occurred.");
+    triggerAlert({
+      title: "Lock Seeding Pools?",
+      message: `This will lock current group layouts for ${catName} and generate all official Round Robin matches. Proceed?`,
+      type: "warning",
+      onConfirm: async () => {
+        try {
+          const response = await axios.post(`${SOCKET_URL}/api/groups/generate`, {
+            tournamentId,
+            categoryId: targetCat.category_id,
+            categoryName: catName
+          });
+          
+          triggerAlert({
+            title: "Fixtures Deployed",
+            message: response.data.message || "Successfully committed pools and generated match entries!",
+            type: "success"
+          });
+          await refreshData();
+        } catch (error: unknown) {
+          if (axios.isAxiosError(error)) {
+            triggerAlert({
+              title: "Scheduling Refused",
+              message: error.response?.data?.error || "Failed to commit official seed fixtures.",
+              type: "error"
+            });
+          } else {
+            triggerAlert({
+              title: "System Exception",
+              message: "An unexpected scheduling error occurred.",
+              type: "error"
+            });
+          }
+        }
       }
-    }
+    });
   };
 
+  // 🚀 REFACTORED: Migrated confirm warning block to triggerAlert callback configuration
   const handleUnseedCategory = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
 
-    const safetyVerification = window.confirm(
-      `🚨 DANGER ZONE: UNSEED BRACKETS?\n\nThis will permanently remove ALL generated match schedules, score logs, and court sessions for the "${catName}" division.\n\nTeams and their performance metrics will be reset to an unassigned draft mode. Proceed?`
-    );
+    triggerAlert({
+      title: "Recall Division Brackets?",
+      message: `DANGER ZONE: This will permanently remove ALL generated match schedules, score logs, and court sessions for the "${catName}" division.\n\nTeams and their performance metrics will be reset to an unassigned draft mode. Proceed?`,
+      type: "error",
+      onConfirm: async () => {
+        try {
+          setUnseedingCatId(targetCat.category_id);
+          const secureToken = sessionStorage.getItem('altori_admin_token');
 
-    if (!safetyVerification) return;
+          const response = await axios.post(`${SOCKET_URL}/api/groups/unseed`, {
+            tournamentId,
+            categoryId: targetCat.category_id,
+            categoryName: catName
+          }, {
+            withCredentials: true,
+            headers: secureToken ? { Authorization: `Bearer ${secureToken}` } : {}
+          });
 
-    try {
-      setUnseedingCatId(targetCat.category_id);
-      const secureToken = sessionStorage.getItem('altori_admin_token');
-
-      const response = await axios.post(`${SOCKET_URL}/api/groups/unseed`, {
-        tournamentId,
-        categoryId: targetCat.category_id,
-        categoryName: catName
-      }, {
-        withCredentials: true,
-        headers: secureToken ? { Authorization: `Bearer ${secureToken}` } : {}
-      });
-
-      alert(response.data.message || "Seeding tables successfully scrubbed. Brackets reset to draft mode.");
-      await refreshData();
-    } catch (error: unknown) {
-      console.error("❌ Critical Pool Unseeding Error Matrix Details:", error);
-      if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.error || "Backend failed to safely drop seeded bracket records.");
-      } else {
-        alert("An unexpected network connection error occurred trying to unseed pools.");
+          triggerAlert({
+            title: "Brackets Scrubbed",
+            message: response.data.message || "Seeding tables successfully scrubbed. Brackets reset to draft mode.",
+            type: "warning"
+          });
+          await refreshData();
+        } catch (error: unknown) {
+          console.error("❌ Critical Pool Unseeding Error Matrix Details:", error);
+          if (axios.isAxiosError(error)) {
+            triggerAlert({
+              title: "Command Overturned",
+              message: error.response?.data?.error || "Backend failed to safely drop seeded bracket records.",
+              type: "error"
+            });
+          } else {
+            triggerAlert({
+              title: "Link Terminated",
+              message: "An unexpected network connection error occurred trying to unseed pools.",
+              type: "error"
+            });
+          }
+        } finally {
+          setUnseedingCatId(null);
+        }
       }
-    } finally {
-      setUnseedingCatId(null);
-    }
+    });
   };
 
+  // 🚀 REFACTORED: Migrated confirmation alert to triggerAlert loop
   const handleDeleteTeam = async (teamId: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to completely remove "${name}" from the roster?`)) return;
-    try {
-      await axios.delete(`${SOCKET_URL}/api/teams/${teamId}`);
-      await refreshData();
-    } catch {
-      alert("Failed to delete team. Please ensure backend route is configured.");
-    }
+    triggerAlert({
+      title: "Purge Roster Profile?",
+      message: `Are you sure you want to completely remove "${name}" from the active tournament roster?`,
+      type: "warning",
+      onConfirm: async () => {
+        try {
+          await axios.delete(`${SOCKET_URL}/api/teams/${teamId}`);
+          await refreshData();
+        } catch {
+          triggerAlert({
+            title: "Operation Aborted",
+            message: "Failed to delete team. Please ensure backend route is configured.",
+            type: "error"
+          });
+        }
+      }
+    });
   };
 
+  // 🚀 REFACTORED: Migrated standard catch alert to triggerAlert
   const handleSaveEditTeam = async (teamId: string) => {
     if (!editTeamName.trim()) return;
     try {
@@ -303,7 +402,11 @@ export const RegistrationPortal = () => {
       setEditingTeamId(null);
       await refreshData();
     } catch {
-      alert("Failed to update team name. Please ensure backend route is configured.");
+      triggerAlert({
+        title: "Profile Mutation Fault",
+        message: "Failed to update team name. Please ensure backend route is configured.",
+        type: "error"
+      });
     }
   };
 
@@ -313,6 +416,7 @@ export const RegistrationPortal = () => {
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
 
+  // 🚀 REFACTORED: Migrated dynamic error catch alerts to triggerAlert
   const handleOnDrop = async (e: React.DragEvent, targetGroupId: string | null) => {
     e.preventDefault();
     const draggedTeamId = e.dataTransfer.getData('text/plain');
@@ -322,7 +426,11 @@ export const RegistrationPortal = () => {
       await axios.put(`${SOCKET_URL}/api/teams/${draggedTeamId}/group`, { groupId: targetGroupId });
       await refreshData();
     } catch {
-      alert("Failed to relocate team drop configuration parameters.");
+      triggerAlert({
+        title: "Relocation Fault",
+        message: "Failed to relocate team drop configuration parameters.",
+        type: "error"
+      });
     }
   };
 
@@ -361,7 +469,6 @@ export const RegistrationPortal = () => {
               </select>
             </div>
 
-            {/* 🚀 REFACTORED: Swapped input requirement to optional state format cleanly */}
             {!isSingles && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-mono font-bold uppercase text-slate-500">
@@ -382,7 +489,7 @@ export const RegistrationPortal = () => {
               <label className="text-[10px] font-mono font-bold uppercase text-slate-500">{isSingles ? "Player Name" : "Player One Full Name"}</label>
               <input 
                 type="text" value={player1Name} onChange={(e) => setPlayer1Name(e.target.value)} required placeholder="Primary participant name"
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 min-h-[40px]"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 dark:bg-slate-950 dark:border-white/10 dark:text-white min-h-[40px]"
               />
             </div>
 
@@ -498,7 +605,7 @@ export const RegistrationPortal = () => {
                             <button
                               onClick={() => handleApprovePayment(team.id)}
                               disabled={verifyingId === team.id || !team.payment_proof_url}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white rounded-lg font-mono font-bold uppercase text-[9px] tracking-wider cursor-pointer shadow-xs shadow-emerald-600/10"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-50 disabled:opacity-30 text-white rounded-lg font-mono font-bold uppercase text-[9px] tracking-wider cursor-pointer shadow-xs shadow-emerald-600/10"
                             >
                               {verifyingId === team.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                               Approve
@@ -603,7 +710,6 @@ export const RegistrationPortal = () => {
 
               const hasIncomingUnassignedTeams = groupedTeams["Unassigned"] && groupedTeams["Unassigned"].length > 0;
               
-              // 🚀 FIXED: Retain group boards visible in draft states to permit manual D&D configurations
               const displayWorkspaceGrid = isAllocated || !isSeeded;
 
               return (
@@ -851,7 +957,6 @@ export const RegistrationPortal = () => {
                             </button>
                           )}
 
-                          {/* 🚀 FIXED: Render Seed Pools option in draft modes dynamically in place of Unseed */}
                           {!isSeeded && (
                             <button
                               onClick={() => handleCommitSeedPools(cat)}

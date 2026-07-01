@@ -180,11 +180,17 @@ export const AdminPanel = () => {
       m.team2_id === targetMatch.team2_id
     );
 
+    // 🚀 REFACTORED: Swapped scheduling collision alert to premium triggerAlert window
     if (activeConflictMatch) {
       const busyTeamName = (activeConflictMatch.team1_id === targetMatch.team1_id || activeConflictMatch.team1_id === targetMatch.team2_id)
         ? (activeConflictMatch.team1?.team_name || "Unknown")
         : (activeConflictMatch.team2?.team_name || "Unknown");
-      alert(`⚠️ Scheduling Collision: Team "${busyTeamName}" is currently playing an active match on Court 0${activeConflictMatch.court_id}!`);
+        
+      triggerAlert({
+        title: "Scheduling Collision",
+        message: `Team "${busyTeamName}" is currently playing an active match on Court 0${activeConflictMatch.court_id}!`,
+        type: "warning"
+      });
       return;
     }
 
@@ -206,10 +212,19 @@ export const AdminPanel = () => {
         announcementMode
       );
     } catch (error) {
+      // 🚀 REFACTORED: Unified error reporting maps to drop alert boxes cleanly
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.error || "Failed to deploy match.");
+        triggerAlert({
+          title: "Deployment Failed",
+          message: error.response?.data?.error || "Failed to deploy match layout.",
+          type: "error"
+        });
       } else {
-        alert("An unexpected scheduling layout error occurred.");
+        triggerAlert({
+          title: "System Exception",
+          message: "An unexpected scheduling layout error occurred.",
+          type: "error"
+        });
       }
     }
   };
