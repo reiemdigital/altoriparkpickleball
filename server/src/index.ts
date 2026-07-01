@@ -210,7 +210,6 @@ io.on('connection', (socket: Socket) => {
  * AUTHENTICATION & CREDENTIAL DISPATCH ROUTES
  * ======================================================= */
 
-// 🚀 REFACTORED: Attached the structural 'loginLimiter' middleware to intercept high-velocity attacks
 app.post('/api/auth/login', loginLimiter, async (req: Request, res: Response) => {
   const { username, password } = req.body;
 
@@ -1050,6 +1049,7 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
       }).eq('id', match.team2_id);
     }
 
+    // 🚀 REFACTORED: Fixed structural advancement logic by calculating sibling match winner dynamically
     if (match.match_type === 'ELIMINATION' && (match.bracket_position === 'SF1' || match.bracket_position === 'SF2')) {
       const siblingPosition = match.bracket_position === 'SF1' ? 'SF2' : 'SF1';
       
@@ -1060,31 +1060,43 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
         .eq('category_id', match.category_id)
         .eq('match_type', 'ELIMINATION')
         .eq('bracket_position', siblingPosition)
-        .single();
+        .maybeSingle();
 
-      if (siblingMatch && siblingMatch.status === 'FINISHED' && siblingMatch.winner_id) {
-        const sf1Winner = match.bracket_position === 'SF1' ? winnerId : siblingMatch.winner_id;
-        const sf2Winner = match.bracket_position === 'SF2' ? winnerId : siblingMatch.winner_id;
+      if (siblingMatch && siblingMatch.status === 'FINISHED') {
+        const siblingWinnerId = siblingMatch.team1_score > siblingMatch.team2_score ? siblingMatch.team1_id : siblingMatch.team2_id;
+        
+        const sf1Winner = match.bracket_position === 'SF1' ? winnerId : siblingWinnerId;
+        const sf2Winner = match.bracket_position === 'SF2' ? winnerId : siblingWinnerId;
 
-        const { data: existingFinals } = await supabase
-          .from('matches')
-          .select('id')
-          .eq('tournament_id', match.tournament_id)
-          .eq('category_id', match.category_id)
-          .eq('match_type', 'ELIMINATION')
-          .eq('bracket_position', 'FINALS')
-          .maybeSingle();
+        if (sf1Winner && sf2Winner) {
+          const { data: existingFinals } = await supabase
+            .from('matches')
+            .select('id')
+            .eq('tournament_id', match.tournament_id)
+            .eq('category_id', match.category_id)
+            .eq('match_type', 'ELIMINATION')
+            .eq('bracket_position', 'FINALS')
+            .maybeSingle();
 
-        if (!existingFinals && sf1Winner && sf2Winner) {
-          await supabase.from('matches').insert({
-            tournament_id: match.tournament_id,
-            category_id: match.category_id,
-            match_type: 'ELIMINATION',
-            bracket_position: 'FINALS',
-            status: 'PENDING',
-            team1_id: sf1Winner,
-            team2_id: sf2Winner
-          });
+          if (!existingFinals) {
+            await supabase.from('matches').insert({
+              tournament_id: match.tournament_id,
+              category_id: match.category_id,
+              match_type: 'ELIMINATION',
+              bracket_position: 'FINALS',
+              status: 'PENDING',
+              team1_id: sf1Winner,
+              team2_id: sf2Winner
+            });
+          } else {
+            // Self-healing block: Syncs changes dynamically if scores are corrected post-facto
+            await supabase.from('matches')
+              .update({
+                team1_id: sf1Winner,
+                team2_id: sf2Winner
+              })
+              .eq('id', existingFinals.id);
+          }
         }
       }
     }
@@ -1426,7 +1438,7 @@ app.use(express.static(clientDistPath));
 
 app.get('*', (req: Request, res: Response) => {
   res.sendFile(path.join(clientDistPath, 'index.html'));
-});
+ });
 
 const PORT = parseInt(process.env.PORT || '5001', 10);
 httpServer.listen(PORT, '0.0.0.0', () => {
