@@ -39,7 +39,6 @@ interface CustomMatchExtension {
   refereeName?: string | null; 
 }
 
-// 🚀 FIXED: Added strict structural model interface to completely eliminate "any" casts
 interface TeamStandingModel {
   id: string;
   tournament_id: string;
@@ -86,7 +85,6 @@ export const AdminPanel = () => {
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
   
-  // 🚀 FIXED: Enforce a stable useMemo hook wrapper onto the stores raw array feed to clear react-hooks/exhaustive-deps
   const storeStandings = useTournamentStore((state) => state.standings) as unknown as TeamStandingModel[];
   const standings = useMemo(() => storeStandings || [], [storeStandings]);
 
@@ -164,7 +162,6 @@ export const AdminPanel = () => {
           const nameT2 = m.team2?.team_name?.toLowerCase() || '';
           const division = m.category?.name?.toLowerCase() || '';
           
-          // 🚀 FIXED: Implicit type inference via TeamStandingModel clears lint errors here
           const localizedTeamDoc = standings.find((t) => t.id === m.team1_id);
           const assignedGroup = localizedTeamDoc?.group_id?.toLowerCase() || '';
           const positionBracket = m.match_type === 'ELIMINATION' ? (m.bracket_position?.toLowerCase() || 'playoffs') : '';
@@ -254,7 +251,6 @@ export const AdminPanel = () => {
         announcementMode
       );
     } catch (error: unknown) {
-      // 🚀 FIXED: Safe, type-guarded exception tracking handles the unknown type error context flawlessly
       if (axios.isAxiosError(error)) {
         triggerAlert({
           title: "Deployment Failed",
@@ -284,7 +280,6 @@ export const AdminPanel = () => {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
         
         {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP */}
-        {/* 🚀 FIXED: Canonical style parameters applied (min-h-75) */}
         <div className="xl:col-span-4 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-75 xl:min-h-130">
           <h2 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 shrink-0">
             <ShieldCheck className="h-4 w-4 shrink-0" /> Active Court Access Remote Monitors
@@ -309,7 +304,6 @@ export const AdminPanel = () => {
                       <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
                     </div>
 
-                    {/* 🚀 FIXED: Canonical style parameters applied (min-h-10) */}
                     <Link 
                       to={`/referee/${m.id}`}
                       className="w-full bg-[#64317C] text-white font-mono text-[11px] font-bold py-3 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 hover:bg-opacity-90 active:scale-[0.98] transition-all text-center shadow-xs cursor-pointer min-h-10"
@@ -324,7 +318,6 @@ export const AdminPanel = () => {
         </div>
 
         {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL */}
-        {/* 🚀 FIXED: Canonical style parameters applied (min-h-87.5) */}
         <div className="xl:col-span-8 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-87.5 xl:min-h-130">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
@@ -353,7 +346,6 @@ export const AdminPanel = () => {
           </div>
 
           {/* Smart Filter Search Input Box */}
-          {/* 🚀 FIXED: Canonical style parameters applied (min-h-9.5) */}
           <div className="mb-4 relative shrink-0">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -430,36 +422,37 @@ export const AdminPanel = () => {
                             </span>
                           </span>
 
-                          <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex flex-wrap items-center gap-x-2 gap-y-1 select-all w-full min-w-0">
-                            <span className="flex items-center gap-1 min-w-0 truncate">
+                          {/* Category and Group Bracket Labels container wrapper line */}
+                          <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center select-all w-full min-w-0">
+                            <span className="flex items-center gap-1 min-w-0 truncate max-w-full">
                               <Layers className="h-3 w-3 text-purple-500 shrink-0" /> 
                               <span className="truncate">{match.category?.name || "General Category"}</span>
-                            </span>
-                            
-                            {(() => {
-                              // 🚀 FIXED: Implicit array map matching resolves types cleanly without any explicit casts
-                              const poolLabel = match.match_type === 'ELIMINATION' 
-                                ? (match.bracket_position || 'Playoffs')
-                                : (standings.find((t) => t.id === match.team1_id)?.group_id || null);
-                                
-                              if (!poolLabel) return null;
-                              const isPlayoffStage = match.match_type === 'ELIMINATION';
                               
-                              return (
-                                <span className={`px-1.5 py-0.5 rounded-md font-mono text-[9px] font-black border tracking-wider shrink-0 uppercase ${
-                                  isPlayoffStage 
-                                    ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
-                                    : 'bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'
-                                }`}>
-                                  {poolLabel}
-                                </span>
-                              );
-                            })()}
+                              {/* 🚀 FIXED: Group Bracket element nested inline right next to the category name text node */}
+                              {(() => {
+                                const teamProfile = standings.find((t) => t.id === match.team1_id);
+                                const poolLabel = match.match_type === 'ELIMINATION' 
+                                  ? (match.bracket_position || 'Playoffs')
+                                  : (teamProfile?.group_id || null);
+                                  
+                                if (!poolLabel) return null;
+                                const isPlayoffStage = match.match_type === 'ELIMINATION';
+                                
+                                return (
+                                  <span className={`ml-2 px-1.5 py-0.5 rounded-md font-mono text-[9px] font-black border tracking-wider shrink-0 uppercase ${
+                                    isPlayoffStage 
+                                      ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                                      : 'bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'
+                                  }`}>
+                                    {poolLabel}
+                                  </span>
+                                );
+                              })()}
+                            </span>
                           </span>
                         </div>
                       </div>
 
-                      {/* 🚀 FIXED: All selection inputs optimization updates applied below (min-h-10) */}
                       <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto justify-end shrink-0">
                         <select
                           value={currentSelectedReferee}
