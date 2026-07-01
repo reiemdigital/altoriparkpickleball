@@ -242,7 +242,7 @@ export const AdminPanel = () => {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
         
         {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP (xl:col-span-5) */}
-        <div className="xl:col-span-5 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[300px] xl:min-h-130">
+        <div className="xl:col-span-4 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[300px] xl:min-h-130">
           <h2 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 shrink-0">
             <ShieldCheck className="h-4 w-4 shrink-0" /> Active Court Access Remote Monitors
           </h2>
@@ -280,7 +280,7 @@ export const AdminPanel = () => {
         </div>
 
         {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL (xl:col-span-7) */}
-        <div className="xl:col-span-7 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[350px] xl:min-h-130">
+        <div className="xl:col-span-8 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[350px] xl:min-h-130">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
               Director's Command Console
