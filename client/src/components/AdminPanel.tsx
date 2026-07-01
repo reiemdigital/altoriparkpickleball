@@ -11,7 +11,9 @@ import {
   Layers, 
   Settings, 
   Activity,
-  Loader2
+  Loader2,
+  Search,
+  X
 } from 'lucide-react';
 import { useAlertStore } from '../store/useAlertStore';
 
@@ -28,11 +30,27 @@ interface CustomMatchExtension {
   court_id: number | null;
   team1_id: string;
   team2_id: string;
+  match_type?: 'ROUND_ROBIN' | 'ELIMINATION';
+  bracket_position?: 'SF1' | 'SF2' | 'FINALS' | null;
   team1?: { team_name: string };
   team2?: { team_name: string };
   category?: { name: string };
   referee_name?: string | null;
   refereeName?: string | null; 
+}
+
+// 🚀 FIXED: Added strict structural model interface to completely eliminate "any" casts
+interface TeamStandingModel {
+  id: string;
+  tournament_id: string;
+  category_id: string;
+  team_name: string;
+  registration_status: 'PENDING' | 'CONFIRMED' | 'WAITLISTED';
+  group_id: string | null;
+  matches_played: number;
+  wins: number;
+  points_for: number;
+  points_against: number;
 }
 
 declare global {
@@ -67,9 +85,15 @@ export const AdminPanel = () => {
   const matches = useTournamentStore((state) => state.matches) as unknown as CustomMatchExtension[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
+  
+  // 🚀 FIXED: Enforce a stable useMemo hook wrapper onto the stores raw array feed to clear react-hooks/exhaustive-deps
+  const storeStandings = useTournamentStore((state) => state.standings) as unknown as TeamStandingModel[];
+  const standings = useMemo(() => storeStandings || [], [storeStandings]);
 
   const [staffReferees, setStaffReferees] = useState<StaffProfile[]>([]);
   const [isStaffLoading, setIsStaffLoading] = useState<boolean>(true);
+  
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const activeCachedRole = (sessionStorage.getItem('altori_admin_role') || sessionStorage.getItem('altori_user_role') || 'STAFF').toUpperCase();
   const isStaff = activeCachedRole === 'STAFF';
@@ -86,8 +110,6 @@ export const AdminPanel = () => {
     const fetchStaffReferees = async () => {
       try {
         setIsStaffLoading(true);
-        
-        // 🔐 Extract auth token to clear firewall validation blocks
         const secureToken = sessionStorage.getItem('altori_admin_token');
         
         const response = await axios.get(`${SOCKET_URL}/api/admin/staff`, {
@@ -134,14 +156,35 @@ export const AdminPanel = () => {
 
   const processedPendingMatches = useMemo(() => {
     const pending = matches.filter((m) => m.status === 'PENDING');
-    return [...pending].sort((a, b) => {
+    
+    const parsedQuery = searchQuery.trim().toLowerCase();
+    const filteredMatches = parsedQuery 
+      ? pending.filter(m => {
+          const nameT1 = m.team1?.team_name?.toLowerCase() || '';
+          const nameT2 = m.team2?.team_name?.toLowerCase() || '';
+          const division = m.category?.name?.toLowerCase() || '';
+          
+          // 🚀 FIXED: Implicit type inference via TeamStandingModel clears lint errors here
+          const localizedTeamDoc = standings.find((t) => t.id === m.team1_id);
+          const assignedGroup = localizedTeamDoc?.group_id?.toLowerCase() || '';
+          const positionBracket = m.match_type === 'ELIMINATION' ? (m.bracket_position?.toLowerCase() || 'playoffs') : '';
+
+          return nameT1.includes(parsedQuery) || 
+                 nameT2.includes(parsedQuery) || 
+                 division.includes(parsedQuery) || 
+                 assignedGroup.includes(parsedQuery) ||
+                 positionBracket.includes(parsedQuery);
+        })
+      : pending;
+
+    return [...filteredMatches].sort((a, b) => {
       const aBlocked = busyTeamIds.has(a.team1_id) || busyTeamIds.has(a.team2_id);
       const bBlocked = busyTeamIds.has(b.team1_id) || busyTeamIds.has(b.team2_id);
       if (aBlocked && !bBlocked) return 1;
       if (!aBlocked && bBlocked) return -1;
       return 0;
     });
-  }, [matches, busyTeamIds]);
+  }, [matches, busyTeamIds, searchQuery, standings]);
 
   const handleCourtChange = (matchId: string, courtId: number) => {
     setCourtAssignments((prev) => ({ ...prev, [matchId]: courtId }));
@@ -180,7 +223,6 @@ export const AdminPanel = () => {
       m.team2_id === targetMatch.team2_id
     );
 
-    // 🚀 REFACTORED: Swapped scheduling collision alert to premium triggerAlert window
     if (activeConflictMatch) {
       const busyTeamName = (activeConflictMatch.team1_id === targetMatch.team1_id || activeConflictMatch.team1_id === targetMatch.team2_id)
         ? (activeConflictMatch.team1?.team_name || "Unknown")
@@ -211,12 +253,12 @@ export const AdminPanel = () => {
         targetMatch.category?.name || "Tournament Division",
         announcementMode
       );
-    } catch (error) {
-      // 🚀 REFACTORED: Unified error reporting maps to drop alert boxes cleanly
+    } catch (error: unknown) {
+      // 🚀 FIXED: Safe, type-guarded exception tracking handles the unknown type error context flawlessly
       if (axios.isAxiosError(error)) {
         triggerAlert({
           title: "Deployment Failed",
-          message: error.response?.data?.error || "Failed to deploy match layout.",
+          message: String(error.response?.data?.error || "Failed to deploy match layout."),
           type: "error"
         });
       } else {
@@ -241,8 +283,9 @@ export const AdminPanel = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
         
-        {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP (xl:col-span-5) */}
-        <div className="xl:col-span-4 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[300px] xl:min-h-130">
+        {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP */}
+        {/* 🚀 FIXED: Canonical style parameters applied (min-h-75) */}
+        <div className="xl:col-span-4 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-75 xl:min-h-130">
           <h2 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 shrink-0">
             <ShieldCheck className="h-4 w-4 shrink-0" /> Active Court Access Remote Monitors
           </h2>
@@ -266,9 +309,10 @@ export const AdminPanel = () => {
                       <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
                     </div>
 
+                    {/* 🚀 FIXED: Canonical style parameters applied (min-h-10) */}
                     <Link 
                       to={`/referee/${m.id}`}
-                      className="w-full bg-[#64317C] text-white font-mono text-[11px] font-bold py-3 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 hover:bg-opacity-90 active:scale-[0.98] transition-all text-center shadow-xs cursor-pointer min-h-[40px]"
+                      className="w-full bg-[#64317C] text-white font-mono text-[11px] font-bold py-3 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 hover:bg-opacity-90 active:scale-[0.98] transition-all text-center shadow-xs cursor-pointer min-h-10"
                     >
                       <Smartphone className="h-3.5 w-3.5 shrink-0" /> Launch Referee Remote ↗
                     </Link>
@@ -279,8 +323,9 @@ export const AdminPanel = () => {
           </div>
         </div>
 
-        {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL (xl:col-span-7) */}
-        <div className="xl:col-span-8 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-[350px] xl:min-h-130">
+        {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL */}
+        {/* 🚀 FIXED: Canonical style parameters applied (min-h-87.5) */}
+        <div className="xl:col-span-8 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-87.5 xl:min-h-130">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
               Director's Command Console
@@ -307,7 +352,30 @@ export const AdminPanel = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-105 pr-1 w-full">
+          {/* Smart Filter Search Input Box */}
+          {/* 🚀 FIXED: Canonical style parameters applied (min-h-9.5) */}
+          <div className="mb-4 relative shrink-0">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by team name, category division, or group pool letter..."
+              className="w-full bg-slate-50/50 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2.5 text-xs font-sans font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:bg-white dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 transition-all min-h-9.5"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto max-h-96 pr-1 w-full">
             {isStaffLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 font-mono text-xs">
                 <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
@@ -315,7 +383,7 @@ export const AdminPanel = () => {
               </div>
             ) : processedPendingMatches.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500 italic pt-2">
-                No pending matches available. All courts are deployed or finished!
+                {searchQuery ? "No matches match your filter criteria." : "No pending matches available. All courts are deployed or finished!"}
               </p>
             ) : (
               <div className="space-y-3 w-full">
@@ -362,18 +430,42 @@ export const AdminPanel = () => {
                             </span>
                           </span>
 
-                          <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 select-all truncate w-full">
-                            <Layers className="h-3 w-3 text-purple-500 shrink-0" /> <span className="truncate">{match.category?.name || "General Category"}</span>
+                          <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex flex-wrap items-center gap-x-2 gap-y-1 select-all w-full min-w-0">
+                            <span className="flex items-center gap-1 min-w-0 truncate">
+                              <Layers className="h-3 w-3 text-purple-500 shrink-0" /> 
+                              <span className="truncate">{match.category?.name || "General Category"}</span>
+                            </span>
+                            
+                            {(() => {
+                              // 🚀 FIXED: Implicit array map matching resolves types cleanly without any explicit casts
+                              const poolLabel = match.match_type === 'ELIMINATION' 
+                                ? (match.bracket_position || 'Playoffs')
+                                : (standings.find((t) => t.id === match.team1_id)?.group_id || null);
+                                
+                              if (!poolLabel) return null;
+                              const isPlayoffStage = match.match_type === 'ELIMINATION';
+                              
+                              return (
+                                <span className={`px-1.5 py-0.5 rounded-md font-mono text-[9px] font-black border tracking-wider shrink-0 uppercase ${
+                                  isPlayoffStage 
+                                    ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                                    : 'bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'
+                                }`}>
+                                  {poolLabel}
+                                </span>
+                              );
+                            })()}
                           </span>
                         </div>
                       </div>
 
+                      {/* 🚀 FIXED: All selection inputs optimization updates applied below (min-h-10) */}
                       <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto justify-end shrink-0">
                         <select
                           value={currentSelectedReferee}
                           onChange={(e) => handleRefereeChange(match.id, e.target.value)}
                           disabled={isBlocked || staffReferees.length === 0 || availableReferees.length === 0 || isStaff}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-3 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto sm:max-w-40 truncate min-h-[40px]"
+                          className="bg-white text-slate-800 text-xs px-2.5 py-3 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto sm:max-w-40 truncate min-h-10"
                         >
                           {staffReferees.length === 0 ? (
                             <option value="" disabled>⚠️ No registered staff found</option>
@@ -391,7 +483,7 @@ export const AdminPanel = () => {
                           value={currentSelectedCourt} 
                           onChange={(e) => handleCourtChange(match.id, Number(e.target.value))}
                           disabled={isBlocked || availableCourts.length === 0 || isStaff}
-                          className="bg-white text-slate-800 text-xs px-2.5 py-3 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto min-h-[40px]"
+                          className="bg-white text-slate-800 text-xs px-2.5 py-3 sm:py-2 rounded-lg border border-slate-200 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-white/10 disabled:opacity-50 text-left w-full sm:w-auto min-h-10"
                         >
                           {availableCourts.length === 0 ? (
                             <option value={0} disabled>⚠️ All Courts Busy</option>
@@ -405,7 +497,7 @@ export const AdminPanel = () => {
                         <button 
                           onClick={() => startMatch(match.id)}
                           disabled={isBlocked || isResourceExhausted || isStaff}
-                          className={`text-xs font-bold px-4 py-3.5 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto min-h-[40px] flex items-center justify-center ${
+                          className={`text-xs font-bold px-4 py-3.5 sm:py-2 rounded-lg transition-all shadow-sm w-full sm:w-auto min-h-10 flex items-center justify-center ${
                             isBlocked || isResourceExhausted || isStaff
                               ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 shadow-none opacity-60'
                               : 'bg-purple-600 text-white hover:bg-opacity-90 active:scale-[0.97] cursor-pointer'
