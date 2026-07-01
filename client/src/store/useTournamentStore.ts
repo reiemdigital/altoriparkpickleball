@@ -2,9 +2,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
-// Smart Environment Detection:
-// In production, Axios will route queries relatively via your live Render host URL.
-// In local development, it falls back seamlessly to your local machine network address.
 const API_URL = import.meta.env.PROD 
   ? window.location.origin 
   : 'http://192.168.8.110:5001'; 
@@ -52,11 +49,12 @@ export interface Match {
   bracket_position: 'SF1' | 'SF2' | 'FINALS' | null;
   started_at: string | null;
   ended_at: string | null;
-  team1?: { team_name: string };
-  team2?: { team_name: string };
+  
+  // 🚀 FIXED: Extended interface contract to support direct relational group data lookup
+  team1?: { team_name: string; group_id?: string | null };
+  team2?: { team_name: string; group_id?: string | null };
   category?: { name: string };
   
-  // UPGRADED CONTRACT: Defensive field extensions prevent compilation breaks on cross-notation payloads
   score1?: number;
   score2?: number;
   refereeName?: string | null;
@@ -80,7 +78,7 @@ export interface TeamStanding {
 }
 
 export interface GatewayData {
-  isAdmin: boolean; // 🛡️ FIX 1: Shifted from 'any' to strict type-safe boolean contract
+  isAdmin: boolean;
   tournament: TournamentEvent | null;
   categories: TournamentCategory[];
   stats: {
@@ -105,12 +103,9 @@ interface TournamentState {
   setHistory: (history: Match[]) => void;
   updateMatch: (updatedMatch: Match) => void;
   
-  // ADMIN ASYNC CRUD STATE OPERATIONS
   addTournament: (tournamentData: Omit<TournamentEvent, 'id' | 'status'>) => Promise<TournamentEvent>;
   updateTournamentInStore: (id: string, updatedData: Partial<TournamentEvent>) => Promise<TournamentEvent>;
   deleteTournamentFromStore: (id: string) => Promise<void>;
-  
-  // NEW ASYNC ACTION: Allows independent referee remotes to hydrate individual matches directly from server
   fetchSingleMatchDetails: (matchId: string) => Promise<Match | null>;
 }
 
@@ -121,7 +116,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     tournament: null,
     categories: [],
     stats: { liveMatchesCount: 0, registeredPlayersCount: 0 },
-    isAdmin: false // 🛡️ FIX 2: Resolved missing property on state declaration loop initialization
+    isAdmin: false
   },
   matches: [],
   standings: [],
@@ -134,7 +129,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   setStandings: (standings) => set({ standings }),
   setHistory: (history) => set({ history }),
 
-  // UPGRADED: Senior-level Upsert Pattern ensures state hydration even if cache space initializes blank
   updateMatch: (updatedMatch) => set((state) => {
     const matchExists = state.matches.some((m) => m.id === updatedMatch.id);
     return {
@@ -143,10 +137,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         : [...state.matches, updatedMatch]
     };
   }),
-
-  /** =======================================================
-   * ENRICHED ASYNC MUTATION METHODS WITH CREDENTIAL HEADERS
-   * ======================================================= */
 
   addTournament: async (tournamentData) => {
     const response = await axios.post<TournamentEvent>(
@@ -186,12 +176,11 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       tournaments: state.tournaments.filter((t) => t.id !== id),
       activeTournamentId: isCurrentActive ? null : state.activeTournamentId,
       gatewayData: isCurrentActive 
-        ? { tournament: null, categories: [], stats: { liveMatchesCount: 0, registeredPlayersCount: 0 }, isAdmin: false } // 🛡️ FIX 3: Aligned reset payload shape with GatewayData specifications
+        ? { tournament: null, categories: [], stats: { liveMatchesCount: 0, registeredPlayersCount: 0 }, isAdmin: false } 
         : state.gatewayData
     }));
   },
 
-  // NEW HOOK: Automatically fetches complete parent match context maps via fallback tracking routes
   fetchSingleMatchDetails: async (matchId) => {
     try {
       const response = await axios.get<Match[]>(`${API_URL}/api/tournaments/all/matches-lookup-fallback`);
