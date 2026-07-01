@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path'; 
+import { rateLimit } from 'express-rate-limit';
 // FIXED: Retained explicit .js extension for ES Module runtime compliance under NodeNext resolution
 import { supabase } from './config/supabase.js';
 
@@ -17,6 +18,19 @@ const app = express();
 const httpServer = createServer(app);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'altori_park_super_secret_key_2026';
+
+/** =======================================================
+ * API HARDENING: TARGETED BRUTE-FORCE PROTECTION
+ * ======================================================= */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15-minute tracking window
+  max: 5, // Lock down individual IP vectors after 5 failed sequences
+  message: { 
+    error: 'Too many authentication attempts. Handshake locked for 15 minutes.' 
+  },
+  standardHeaders: true, // Returns rate limit allocation state metadata headers
+  legacyHeaders: false, // Disables outdated X-RateLimit headers
+});
 
 /** =======================================================
  * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
@@ -196,7 +210,8 @@ io.on('connection', (socket: Socket) => {
  * AUTHENTICATION & CREDENTIAL DISPATCH ROUTES
  * ======================================================= */
 
-app.post('/api/auth/login', async (req: Request, res: Response) => {
+// 🚀 REFACTORED: Attached the structural 'loginLimiter' middleware to intercept high-velocity attacks
+app.post('/api/auth/login', loginLimiter, async (req: Request, res: Response) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -755,7 +770,6 @@ app.delete('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, r
  * TOURNAMENT OPERATIONS & SCOPED MATCH ROUTES
  * ======================================================= */
 
-// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' metrics down all lookup filters
 app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
@@ -779,7 +793,6 @@ app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Resp
   }
 });
 
-// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' data dimensions
 app.put('/api/matches/:id/start', requireAuth(['ADMIN', 'STAFF']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { courtId, refereeName } = req.body;
@@ -857,14 +870,13 @@ app.put('/api/matches/:id/start', requireAuth(['ADMIN', 'STAFF']), async (req: R
   }
 });
 
-// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' data arrays
 app.put('/api/matches/:id/cancel', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const { data: match } = await supabase.from('matches').select('tournament_id').eq('id', id).single();
     if (!match) return res.status(404).json({ error: "Match not found" });
 
-    const { data: updatedMatch, error } = await supabase
+    const { data: updatedMatch, error = null } = await supabase
       .from('matches')
       .update({
         status: 'PENDING',
@@ -888,7 +900,6 @@ app.put('/api/matches/:id/cancel', requireAuth(['ADMIN']), async (req: Request, 
   }
 });
 
-// 🚀 REFACTORED: Appended player details to allow proper fallback resolutions
 app.put('/api/matches/:id/default', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
   const { absentTeamNum } = req.body; 
@@ -971,7 +982,6 @@ app.put('/api/matches/:id/default', requireAuth(['ADMIN']), async (req: Request,
   }
 });
 
-// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' constraints to live score trackers
 app.put('/api/matches/:id/score', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { score1, score2 } = req.body;
@@ -996,7 +1006,6 @@ app.put('/api/matches/:id/score', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 REFACTORED: Appended player details layout mapping vectors to finish handler hooks
 app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -1115,7 +1124,6 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
   }
 });
 
-// 🚀 REFACTORED: Appended 'player1_name' and 'player2_name' variables to structural history feeds
 app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
