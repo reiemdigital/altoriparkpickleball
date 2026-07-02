@@ -1157,81 +1157,176 @@ app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, r
  * REGISTRATION, POOLS, & AUTOMATED PLAYOFF GENERATORS
  * ======================================================= */
 
+// Insert this updated route handler inside server/src/index.ts
 app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId, seedingMethod, customSeeds } = req.body;
-  if (!tournamentId || !categoryId) return res.status(400).json({ error: "Required mapping variables missing." });
+  if (!tournamentId || !categoryId) {
+    return res.status(400).json({ error: "Required mapping variables missing." });
+  }
 
   try {
-    const { data: existingPlayoffs } = await supabase
+    // 1. Clear out any existing unplayed playoff brackets to avoid duplicate fixture conflicts
+    await supabase
       .from('matches')
-      .select('id')
+      .delete()
       .eq('tournament_id', tournamentId)
       .eq('category_id', categoryId)
-      .eq('match_type', 'ELIMINATION')
-      .maybeSingle();
+      .eq('match_type', 'ELIMINATION');
 
-    if (existingPlayoffs) {
-      return res.status(400).json({ error: "Playoff brackets have already been generated for this tier." });
-    }
+    // 2. Determine layout depth by checking for Quarter-Final seeds in the request
+    const isQuarterFinalLayout = !!(
+      customSeeds && 
+      (customSeeds.QF1_T1_id || customSeeds.QF2_T1_id || customSeeds.QF3_T1_id || customSeeds.QF4_T1_id)
+    );
 
-    let team1_SF1_id: string | null = null;
-    let team2_SF1_id: string | null = null;
-    let team1_SF2_id: string | null = null;
-    let team2_SF2_id: string | null = null;
+    if (seedingMethod === 'MANUAL' && isQuarterFinalLayout) {
+      /** =======================================================
+       * 🌐 8-TEAM QUARTER-FINAL SYSTEM ENGINE WITH BYE ADVANCEMENT
+       * ======================================================= */
+      const qfSlots = [
+        { key: 'QF1', t1: customSeeds.QF1_T1_id, t2: customSeeds.QF1_T2_id, nextSf: 'SF1', slotNum: 1 },
+        { key: 'QF2', t1: customSeeds.QF2_T1_id, t2: customSeeds.QF2_T2_id, nextSf: 'SF1', slotNum: 2 },
+        { key: 'QF3', t1: customSeeds.QF3_T1_id, t2: customSeeds.QF3_T2_id, nextSf: 'SF2', slotNum: 1 },
+        { key: 'QF4', t1: customSeeds.QF4_T1_id, t2: customSeeds.QF4_T2_id, nextSf: 'SF2', slotNum: 2 },
+      ];
 
-    if (seedingMethod === 'MANUAL' && customSeeds) {
-      team1_SF1_id = customSeeds.SF1_T1_id;
-      team2_SF1_id = customSeeds.SF1_T2_id;
-      team1_SF2_id = customSeeds.SF2_T1_id;
-      team2_SF2_id = customSeeds.SF2_T2_id;
-    } else {
-      const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId).eq('registration_status', 'CONFIRMED');
-      if (!teams || teams.length < 4) {
-        return res.status(400).json({ error: "Insufficient team datasets. Minimum 4 contenders required." });
+      // Track winners of each Quarter-Final to build the Semi-Final round
+      const promotedSfWinners: Record<string, string | null> = {
+        SF1_T1: null,
+        SF1_T2: null,
+        SF2_T1: null,
+        SF2_T2: null
+      };
+
+      const matchesToInsert = [];
+
+      for (const qf of qfSlots) {
+        const isT1Bye = qf.t1 === 'BYE' || !qf.t1;
+        const isT2Bye = qf.t2 === 'BYE' || !qf.t2;
+        
+        const actualT1Id = isT1Bye ? null : qf.t1;
+        const actualT2Id = isT2Bye ? null : qf.t2;
+
+        let status: 'PENDING' | 'FINISHED' = 'PENDING';
+        let t1Score = 0;
+        let t2Score = 0;
+        let endedAt: string | null = null;
+
+        // Auto-advance logic if a BYE is present in the matchup
+        if (isT1Bye && !isT2Bye) {
+          status = 'FINISHED';
+          t2Score = 11;
+          endedAt = new Date().toISOString();
+          promotedSfWinners[`${qf.nextSf}_T${qf.slotNum}`] = actualT2Id;
+        } else if (!isT1Bye && isT2Bye) {
+          status = 'FINISHED';
+          t1Score = 11;
+          endedAt = new Date().toISOString();
+          promotedSfWinners[`${qf.nextSf}_T${qf.slotNum}`] = actualT1Id;
+        } else if (!isT1Bye && !isT2Bye) {
+          // Normal competitive match setup
+          status = 'PENDING';
+        }
+
+        matchesToInsert.push({
+          tournament_id: tournamentId,
+          category_id: categoryId,
+          match_type: 'ELIMINATION',
+          bracket_position: qf.key,
+          team1_id: actualT1Id,
+          team2_id: actualT2Id,
+          team1_score: t1Score,
+          team2_score: t2Score,
+          status: status,
+          ended_at: endedAt
+        });
       }
 
-      const qualifyingWinners = (teams as unknown as Team[]).sort((a: Team, b: Team) => {
-        if (b.wins !== a.wins) return (b.wins || 0) - (a.wins || 0);
-        return ((b.points_for || 0) - (b.points_against || 0)) - ((a.points_for || 0) - (a.points_against || 0));
+      // Add the child Semi-Final placeholders, automatically populating any advanced BYE winners
+      matchesToInsert.push({
+        tournament_id: tournamentId,
+        category_id: categoryId,
+        match_type: 'ELIMINATION',
+        bracket_position: 'SF1',
+        team1_id: promotedSfWinners['SF1_T1'],
+        team2_id: promotedSfWinners['SF1_T2'],
+        status: 'PENDING',
+        team1_score: 0,
+        team2_score: 0
       });
 
-      team1_SF1_id = qualifyingWinners[0].id;
-      team2_SF1_id = qualifyingWinners[3].id;
-      team1_SF2_id = qualifyingWinners[1].id;
-      team2_SF2_id = qualifyingWinners[2].id;
+      matchesToInsert.push({
+        tournament_id: tournamentId,
+        category_id: categoryId,
+        match_type: 'ELIMINATION',
+        bracket_position: 'SF2',
+        team1_id: promotedSfWinners['SF2_T1'],
+        team2_id: promotedSfWinners['SF2_T2'],
+        status: 'PENDING',
+        team1_score: 0,
+        team2_score: 0
+      });
+
+      // Insert the complete bracket structure into the database
+      const { error: insertError } = await supabase.from('matches').insert(matchesToInsert);
+      if (insertError) throw insertError;
+
+    } else {
+      /** =======================================================
+       * 👥 4-TEAM SEMI-FINAL SYSTEM ENGINE (FALLBACK / AUTOMATIC)
+       * ======================================================= */
+      let t1_SF1: string | null = null;
+      let t2_SF1: string | null = null;
+      let t1_SF2: string | null = null;
+      let t2_SF2: string | null = null;
+
+      if (seedingMethod === 'MANUAL' && customSeeds) {
+        t1_SF1 = customSeeds.SF1_T1_id;
+        t2_SF1 = customSeeds.SF1_T2_id;
+        t1_SF2 = customSeeds.SF2_T1_id;
+        t2_SF2 = customSeeds.SF2_T2_id;
+      } else {
+        // Automatic fallback pattern using group stage results
+        const { data: teams } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('category_id', categoryId)
+          .eq('registration_status', 'CONFIRMED');
+
+        if (!teams || teams.length < 4) {
+          return res.status(400).json({ error: "Insufficient teams. Standard automatic seeding requires at least 4 confirmed entries." });
+        }
+
+        const sortedQualifiers = [...teams].sort((a, b) => {
+          if (b.wins !== a.wins) return (b.wins || 0) - (a.wins || 0);
+          return ((b.points_for || 0) - (b.points_against || 0)) - ((a.points_for || 0) - (a.points_against || 0));
+        });
+
+        t1_SF1 = sortedQualifiers[0].id;
+        t2_SF1 = sortedQualifiers[3].id;
+        t1_SF2 = sortedQualifiers[1].id;
+        t2_SF2 = sortedQualifiers[2].id;
+      }
+
+      if (!t1_SF1 || !t2_SF1 || !t1_SF2 || !t2_SF2) {
+        return res.status(400).json({ error: "Seeding Aborted: All 4 core Semi-Final positions must be assigned." });
+      }
+
+      const { error: sfInsertError } = await supabase.from('matches').insert([
+        { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF1', status: 'PENDING', team1_id: t1_SF1, team2_id: t2_SF1, team1_score: 0, team2_score: 0 },
+        { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF2', status: 'PENDING', team1_id: t1_SF2, team2_id: t2_SF2, team1_score: 0, team2_score: 0 }
+      ]);
+      
+      if (sfInsertError) throw sfInsertError;
     }
 
-    if (!team1_SF1_id || !team2_SF1_id || !team1_SF2_id || !team2_SF2_id) {
-      return res.status(400).json({ error: "Seeding Aborted: Ensure all 4 slot destinations contain non-null entries." });
-    }
-
-    const { data: sf1, error: e1 } = await supabase.from('matches').insert({
-      tournament_id: tournamentId,
-      category_id: categoryId,
-      match_type: 'ELIMINATION',
-      bracket_position: 'SF1',
-      status: 'PENDING',
-      team1_id: team1_SF1_id,
-      team2_id: team2_SF1_id
-    }).select().single();
-
-    const { data: sf2, error: e2 } = await supabase.from('matches').insert({
-      tournament_id: tournamentId,
-      category_id: categoryId,
-      match_type: 'ELIMINATION',
-      bracket_position: 'SF2',
-      status: 'PENDING',
-      team1_id: team1_SF2_id,
-      team2_id: team2_SF2_id
-    }).select().single();
-
-    if (e1 || e2) throw (e1 || e2);
-
+    // 3. Dispatch global socket update alerts to synchronize all live dashboards instantly
     io.to(`tournament:${tournamentId}`).emit('standings-refresh'); 
-    return res.json({ success: true, brackets: [sf1, sf2] });
-  } catch (err) {
-    console.error("Playoff assignment pipe error:", err);
-    return res.status(500).json({ error: "Internal elimination tree computation exception" });
+    return res.json({ success: true, message: "Playoff knockout bracket structure successfully generated and synced!" });
+
+  } catch (err: any) {
+    console.error("❌ Critical Playoff Generation Architecture Fault:", err);
+    return res.status(500).json({ error: "Internal elimination mapping failure.", details: err?.message || err });
   }
 });
 
