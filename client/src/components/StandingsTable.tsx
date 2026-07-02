@@ -3,6 +3,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { Trophy, Layers, Lock } from 'lucide-react';
 
+/** =======================================================
+ * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
+ * ======================================================= */
 interface TeamStanding {
   id: string;
   tournament_id: string;
@@ -23,18 +26,23 @@ interface CategoryMapping {
 }
 
 export const StandingsTable = () => {
+  // Pull standings, matches, and metadata categories out of global state cache hooks
   const standings = useTournamentStore((state) => state.standings) as TeamStanding[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const matches = useTournamentStore((state) => state.matches);
   
+  // 🛡️ PERFORMANCE BEST PRACTICE: Track selection by unique database key ID instead of mutable strings
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
+  // Extract real-time categories array directly from dynamic database gate context
   const databaseCategories = useMemo(() => {
     return (gatewayData?.categories || []) as CategoryMapping[];
   }, [gatewayData]);
 
+  // ⚡ AUTOMATED STATE LIFECYCLE SYNC LAYER
   useEffect(() => {
     if (databaseCategories.length > 0 && !selectedCategoryId) {
+      // Defer macro-task execution timing to break synchronous re-rendering loops seamlessly
       const deferInit = setTimeout(() => {
         setSelectedCategoryId(databaseCategories[0].category_id);
       }, 0);
@@ -42,7 +50,7 @@ export const StandingsTable = () => {
     }
   }, [databaseCategories, selectedCategoryId]);
 
-  // 🚀 REFACTORED: Determine if the round-robin group phase has concluded
+  // 🚀 REFACTORED: Determine if the round-robin group phase has concluded for UI state visibility
   const isGroupStageFinished = useMemo(() => {
     if (!selectedCategoryId) return false;
     
@@ -51,21 +59,20 @@ export const StandingsTable = () => {
     
     if (roundRobinMatches.length === 0) return false;
     
-    // Group stage is done if all round robin matches are FINISHED and elimination matches have started
     const allRoundRobinFinished = roundRobinMatches.every(m => m.status === 'FINISHED');
     const eliminationStarted = categoryMatches.some(m => m.match_type === 'ELIMINATION');
     
     return allRoundRobinFinished || eliminationStarted;
   }, [matches, selectedCategoryId]);
 
-  // 🚀 REFACTORED: Dynamically re-calculate standings exclusively using ROUND_ROBIN match records
+  // 🚀 REFACTORED: Dynamically compute group phase data on-the-fly ONLY using ROUND_ROBIN matches
   const computedStandings = useMemo(() => {
     if (!selectedCategoryId) return [];
 
     const isCategoryOfficiallySeeded = matches.some(m => m.category_id === selectedCategoryId);
     if (!isCategoryOfficiallySeeded) return [];
 
-    // Onboard teams belonging to this category segment
+    // Filter teams belonging strictly to the resolved category ID
     const baseTeams = standings.filter(team => 
       team.category_id === selectedCategoryId && 
       team.group_id && 
@@ -73,14 +80,14 @@ export const StandingsTable = () => {
       team.group_id !== 'Pending Pool Seeding'
     );
 
-    // Filter down to completed group stage matches for this specific category tier
+    // Pull completed group stage matches for this specific tier
     const completedGroupMatches = matches.filter(m => 
       m.category_id === selectedCategoryId && 
       m.match_type === 'ROUND_ROBIN' && 
       m.status === 'FINISHED'
     );
 
-    // Build fresh, insulated metrics maps
+    // Build independent, local metrics metrics maps to insulate group score boundaries from elimination updates
     return baseTeams.map(team => {
       let matches_played = 0;
       let wins = 0;
@@ -111,6 +118,7 @@ export const StandingsTable = () => {
     });
   }, [standings, selectedCategoryId, matches]);
 
+  // Separate computed teams into individual round-robin pools (Group A, Group B, etc.)
   const groupedStandings = useMemo(() => {
     const groups: Record<string, TeamStanding[]> = {};
 
@@ -122,9 +130,11 @@ export const StandingsTable = () => {
       groups[poolLabel].push(team);
     });
 
+    // Sort teams internally inside each independent group bucket
     Object.keys(groups).forEach((poolLabel) => {
       groups[poolLabel].sort((a, b) => {
         if (b.wins !== a.wins) return b.wins - a.wins;
+        // Tie-breaker fallback: Point Differential
         const diffA = a.points_for - a.points_against;
         const diffB = b.points_for - b.points_against;
         return diffB - diffA;
@@ -134,6 +144,7 @@ export const StandingsTable = () => {
     return groups;
   }, [computedStandings]);
 
+  // Alpha-sort group keys so Group A always renders before Group B
   const sortedGroupLabels = useMemo(() => {
     return Object.keys(groupedStandings).sort((a, b) => a.localeCompare(b));
   }, [groupedStandings]);
@@ -149,9 +160,8 @@ export const StandingsTable = () => {
             <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
               Live Tournament Standings
             </h2>
-            {/* 🚀 UI EMBED: Visible status tag that communicates when metrics are locked */}
             {isGroupStageFinished && (
-              <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 uppercase tracking-wider">
+              <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 uppercase tracking-wider select-none animate-in fade-in duration-300">
                 <Lock className="h-2.5 w-2.5" /> Pools Locked
               </span>
             )}
@@ -184,6 +194,7 @@ export const StandingsTable = () => {
 
             return (
               <div key={groupLabel} className="space-y-3">
+                {/* POOL HEADER BADGE */}
                 <div className="flex items-center gap-1.5 px-1">
                   <Layers className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                   <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -191,6 +202,7 @@ export const StandingsTable = () => {
                   </h3>
                 </div>
 
+                {/* STANDALONE POOL DATA LEADERBOARD */}
                 <div className="overflow-x-auto border border-slate-100 rounded-xl dark:border-white/5 transition-colors duration-200">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -207,6 +219,8 @@ export const StandingsTable = () => {
                       {poolTeams.map((team, index) => {
                         const diff = team.points_for - team.points_against;
                         const losses = team.matches_played - team.wins;
+                        
+                        // Highlight top 2 teams PER POOL for playoff qualifications
                         const qualifiesForPlayoffs = index < 2;
 
                         return (
@@ -220,7 +234,8 @@ export const StandingsTable = () => {
                               <span className={`inline-block w-6 text-center ${
                                 qualifiesForPlayoffs ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'
                               }`}>
-                                0index + 1
+                                {/* ✅ FIXED: Corrected template arithmetic string injection syntax error here */}
+                                {String(index + 1).padStart(2, '0')}
                               </span>
                             </td>
                             <td className="py-3 px-4">
