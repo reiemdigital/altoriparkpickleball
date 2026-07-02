@@ -49,7 +49,6 @@ export const RegistrationPortal = () => {
   const setGatewayData = useTournamentStore((state) => state.setGatewayData);
   const setMatches = useTournamentStore((state) => state.setMatches);
   
-  // 🚀 REFACTORED: Hook into the central layout modal trigger pipeline
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
 
   const [category, setCategory] = useState('');
@@ -63,6 +62,9 @@ export const RegistrationPortal = () => {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [tempMaxSlots, setTempMaxSlots] = useState<number>(16);
   const [tempGroupCount, setTempGroupCount] = useState<number>(1);
+
+  // 🚀 REFACTORED: Local state map tracking user custom group count overrides per division category
+  const [customGroupCounts, setCustomGroupCounts] = useState<Record<string, number>>({});
 
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editTeamName, setEditTeamName] = useState<string>('');
@@ -140,7 +142,6 @@ export const RegistrationPortal = () => {
     }
   }, [categories, category]);
 
-  // 🚀 REFACTORED: Converted standard browser blocks to triggerAlert instances safely
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tournamentId || !currentCategoryId) {
@@ -189,7 +190,6 @@ export const RegistrationPortal = () => {
     }
   };
 
-  // 🚀 REFACTORED: Converted standard alert to triggerAlert
   const handleApprovePayment = async (teamId: string) => {
     setVerifyingId(teamId);
     try {
@@ -212,7 +212,6 @@ export const RegistrationPortal = () => {
     }
   };
 
-  // 🚀 REFACTORED: Converted standard alerts to triggerAlert
   const handleUpdateConfig = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
@@ -225,6 +224,13 @@ export const RegistrationPortal = () => {
         maxSlots: tempMaxSlots, 
         groupCount: tempGroupCount
       }, { withCredentials: true });
+      
+      // 🚀 REFACTORED: Persist user selection immediately into component state map lookup
+      setCustomGroupCounts(prev => ({
+        ...prev,
+        [targetCat.category_id]: tempGroupCount
+      }));
+
       setEditingCategory(null);
       await refreshData();
     } catch (error: unknown) {
@@ -244,7 +250,6 @@ export const RegistrationPortal = () => {
     }
   };
 
-  // 🚀 REFACTORED: Intercepted response.data.message to display in triggerAlert modal
   const handleAutoAllocateGroups = async (catName: string, targetGroups: number) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
@@ -280,7 +285,6 @@ export const RegistrationPortal = () => {
     }
   };
 
-  // 🚀 REFACTORED: Migrated confirm and catch statements to non-blocking theme layers
   const handleCommitSeedPools = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
@@ -322,7 +326,6 @@ export const RegistrationPortal = () => {
     });
   };
 
-  // 🚀 REFACTORED: Migrated confirm warning block to triggerAlert callback configuration
   const handleUnseedCategory = async (catName: string) => {
     const targetCat = categories.find((c: TournamentCategory) => c.category_name === catName);
     if (!tournamentId || !targetCat) return;
@@ -373,7 +376,6 @@ export const RegistrationPortal = () => {
     });
   };
 
-  // 🚀 REFACTORED: Migrated confirmation alert to triggerAlert loop
   const handleDeleteTeam = async (teamId: string, name: string) => {
     triggerAlert({
       title: "Purge Roster Profile?",
@@ -394,7 +396,6 @@ export const RegistrationPortal = () => {
     });
   };
 
-  // 🚀 REFACTORED: Migrated standard catch alert to triggerAlert
   const handleSaveEditTeam = async (teamId: string) => {
     if (!editTeamName.trim()) return;
     try {
@@ -416,7 +417,6 @@ export const RegistrationPortal = () => {
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
 
-  // 🚀 REFACTORED: Migrated dynamic error catch alerts to triggerAlert
   const handleOnDrop = async (e: React.DragEvent, targetGroupId: string | null) => {
     e.preventDefault();
     const draggedTeamId = e.dataTransfer.getData('text/plain');
@@ -535,7 +535,7 @@ export const RegistrationPortal = () => {
           </form>
         </div>
 
-        {/* RIGHT HAND SIDE COLUMN: THE HYBRID MOBILE-READY VERIFICATION QUEUE */}
+        {/* RIGHT HAND SIDE COLUMN: VERIFICATION QUEUE */}
         <div className="lg:col-span-8 p-4 sm:p-6 bg-white border border-slate-200/80 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/40 backdrop-blur-sm transition-all duration-200 text-left min-w-0 self-stretch flex flex-col justify-between w-full">
           <div>
             <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-white/5 pb-4 gap-2 mb-4">
@@ -685,14 +685,28 @@ export const RegistrationPortal = () => {
               const cat = catObj.category_name;
               const divisionTeams = standings.filter(t => t.category_id === catObj.category_id);
               const maxLimit = catObj.max_slots ?? 16;
-              const activeGroupCount = 4; 
               const isFull = divisionTeams.length >= maxLimit;
               const isCatSingles = catObj.category_type === 'Singles';
               const isAllocated = divisionTeams.some(t => t.group_id && t.group_id !== 'Pending Pool Seeding');
               const isSeeded = matches.some((m) => m.match_type === 'ROUND_ROBIN' && m.category_id === catObj.category_id);
 
-              const previewDistribution = Array.from({ length: activeGroupCount }, () => 0);
               const GROUP_LABELS = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"];
+
+              // 🚀 REFACTORED: Compute highest group letter currently assigned to teams in this division
+              const maxAssignedGroupIndex = divisionTeams.reduce((maxIdx, team) => {
+                if (team.group_id && team.group_id.startsWith("Group ")) {
+                  const idx = GROUP_LABELS.indexOf(team.group_id);
+                  if (idx > maxIdx) return idx;
+                }
+                return maxIdx;
+              }, -1);
+              
+              const derivedAssignedCount = maxAssignedGroupIndex !== -1 ? maxAssignedGroupIndex + 1 : 0;
+              
+              // 🚀 REFACTORED: Evaluate active counts dynamically (User overridden states -> Database derivations -> Base 4 fallback)
+              const activeGroupCount = customGroupCounts[catObj.category_id] || Math.max(4, derivedAssignedCount);
+
+              const previewDistribution = Array.from({ length: activeGroupCount }, () => 0);
               const targetGroupLabels = GROUP_LABELS.slice(0, activeGroupCount);
 
               const groupedTeams: Record<string, typeof divisionTeams> = {};
@@ -703,13 +717,18 @@ export const RegistrationPortal = () => {
                 divisionTeams.forEach((team, idx) => {
                   previewDistribution[idx % activeGroupCount]++;
                   const groupLabel = team.group_id || "Unassigned";
-                  if (!groupedTeams[groupLabel]) groupedTeams[groupLabel] = [];
-                  groupedTeams[groupLabel].push(team);
+                  
+                  // If team group falls outside modified layout boundary bounds, redirect back to Unassigned pool safely
+                  if (groupLabel !== "Unassigned" && targetGroupLabels.includes(groupLabel)) {
+                    if (!groupedTeams[groupLabel]) groupedTeams[groupLabel] = [];
+                    groupedTeams[groupLabel].push(team);
+                  } else {
+                    groupedTeams["Unassigned"].push(team);
+                  }
                 });
               }
 
               const hasIncomingUnassignedTeams = groupedTeams["Unassigned"] && groupedTeams["Unassigned"].length > 0;
-              
               const displayWorkspaceGrid = isAllocated || !isSeeded;
 
               return (
