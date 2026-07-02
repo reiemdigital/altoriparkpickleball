@@ -67,7 +67,8 @@ interface Match {
   referee_name: string | null;
   pin_code: string | null;
   match_type: 'ROUND_ROBIN' | 'ELIMINATION';
-  bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | null;
+  // 🚀 UPDATED CONTRACT: Appended 3RD_PLACE positioning key variants
+  bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null;
   started_at: string | null;
   ended_at: string | null;
   team1?: { team_name: string; player1_name?: string; player2_name?: string; group_id?: string | null };
@@ -1052,29 +1053,45 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
       }
     }
 
-    // 🚀 FIXED: Polished Bracket Progression Automation & Dynamic Next Round Node Traversal Sync Layer
+    // 🚀 FIXED: Dynamic Progression Engine Routing Winner to FINALS and Loser to 3RD_PLACE automatically
     if (match.match_type === 'ELIMINATION') {
-      let nextPosition: 'SF1' | 'SF2' | 'FINALS' | null = null;
-      let nextTeamField: 'team1_id' | 'team2_id' = 'team1_id';
+      const bracketMovements = [];
 
-      if (match.bracket_position === 'QF1') { nextPosition = 'SF1'; nextTeamField = 'team1_id'; }
-      else if (match.bracket_position === 'QF2') { nextPosition = 'SF1'; nextTeamField = 'team2_id'; }
-      else if (match.bracket_position === 'QF3') { nextPosition = 'SF2'; nextTeamField = 'team1_id'; }
-      else if (match.bracket_position === 'QF4') { nextPosition = 'SF2'; nextTeamField = 'team2_id'; }
-      else if (match.bracket_position === 'SF1') { nextPosition = 'FINALS'; nextTeamField = 'team1_id'; }
-      else if (match.bracket_position === 'SF2') { nextPosition = 'FINALS'; nextTeamField = 'team2_id'; }
+      let nextWinnerPosition: 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null = null;
+      let nextWinnerField: 'team1_id' | 'team2_id' = 'team1_id';
 
-      if (nextPosition) {
-        // Safe extraction configuration handling to process string representations of UUID primitives safely
+      if (match.bracket_position === 'QF1') { nextWinnerPosition = 'SF1'; nextWinnerField = 'team1_id'; }
+      else if (match.bracket_position === 'QF2') { nextWinnerPosition = 'SF1'; nextWinnerField = 'team2_id'; }
+      else if (match.bracket_position === 'QF3') { nextWinnerPosition = 'SF2'; nextWinnerField = 'team1_id'; }
+      else if (match.bracket_position === 'QF4') { nextWinnerPosition = 'SF2'; nextWinnerField = 'team2_id'; }
+      else if (match.bracket_position === 'SF1') { nextWinnerPosition = 'FINALS'; nextWinnerField = 'team1_id'; }
+      else if (match.bracket_position === 'SF2') { nextWinnerPosition = 'FINALS'; nextWinnerField = 'team2_id'; }
+
+      if (nextWinnerPosition) {
         const resolvedWinnerId = typeof winnerId === 'object' && winnerId !== null ? (winnerId as any).id : winnerId;
+        bracketMovements.push({ position: nextWinnerPosition, field: nextWinnerField, teamId: resolvedWinnerId });
+      }
 
+      // Consolation Bracket Layer: Trap Semi-Final losers and route them into the Bronze Medal Node
+      if (match.bracket_position === 'SF1' || match.bracket_position === 'SF2') {
+        const loserId = score1 > score2 ? match.team2_id : match.team1_id;
+        const resolvedLoserId = typeof loserId === 'object' && loserId !== null ? (loserId as any).id : loserId;
+        const nextLoserField = match.bracket_position === 'SF1' ? 'team1_id' : 'team2_id';
+
+        if (resolvedLoserId) {
+          bracketMovements.push({ position: '3RD_PLACE', field: nextLoserField, teamId: resolvedLoserId });
+        }
+      }
+
+      // Execute and sync all calculated placement transitions across live channels
+      for (const move of bracketMovements) {
         const { data: existingNext } = await supabase
           .from('matches')
           .select('id')
           .eq('tournament_id', match.tournament_id)
           .eq('category_id', match.category_id)
           .eq('match_type', 'ELIMINATION')
-          .eq('bracket_position', nextPosition)
+          .eq('bracket_position', move.position)
           .maybeSingle();
 
         let targetMatchId = null;
@@ -1082,7 +1099,7 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
         if (existingNext) {
           const { data: updatedNext } = await supabase
             .from('matches')
-            .update({ [nextTeamField]: resolvedWinnerId })
+            .update({ [move.field]: move.teamId })
             .eq('id', existingNext.id)
             .select('id')
             .maybeSingle();
@@ -1094,9 +1111,9 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
               tournament_id: match.tournament_id,
               category_id: match.category_id,
               match_type: 'ELIMINATION',
-              bracket_position: nextPosition,
+              bracket_position: move.position,
               status: 'PENDING',
-              [nextTeamField]: resolvedWinnerId,
+              [move.field]: move.teamId,
               team1_score: 0,
               team2_score: 0
             })
@@ -1105,7 +1122,6 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
           if (insertedNext) targetMatchId = insertedNext.id;
         }
 
-        // 🚀 CRITICAL FIX: Instantly resolve, query, and broadcast updated child nodes to align real-time director view modules
         if (targetMatchId) {
           const { data: fullNextMatch } = await supabase
             .from('matches')
@@ -1216,10 +1232,7 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
 
       // Track winners of each Quarter-Final to build the Semi-Final round
       const promotedSfWinners: Record<string, string | null> = {
-        SF1_T1: null,
-        SF1_T2: null,
-        SF2_T1: null,
-        SF2_T2: null
+        SF1_T1: null, SF1_T2: null, SF2_T1: null, SF2_T2: null
       };
 
       const matchesToInsert = [];
@@ -1247,9 +1260,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
           t1Score = 11;
           endedAt = new Date().toISOString();
           promotedSfWinners[`${qf.nextSf}_T${qf.slotNum}`] = actualT1Id;
-        } else if (!isT1Bye && !isT2Bye) {
-          // Normal competitive match setup
-          status = 'PENDING';
         }
 
         matchesToInsert.push({
@@ -1268,27 +1278,24 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
 
       // Add the child Semi-Final placeholders, automatically populating any advanced BYE winners
       matchesToInsert.push({
-        tournament_id: tournamentId,
-        category_id: categoryId,
-        match_type: 'ELIMINATION',
-        bracket_position: 'SF1',
-        team1_id: promotedSfWinners['SF1_T1'],
-        team2_id: promotedSfWinners['SF1_T2'],
-        status: 'PENDING',
-        team1_score: 0,
-        team2_score: 0
+        tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF1',
+        team1_id: promotedSfWinners['SF1_T1'], team2_id: promotedSfWinners['SF1_T2'], status: 'PENDING', team1_score: 0, team2_score: 0
       });
 
       matchesToInsert.push({
-        tournament_id: tournamentId,
-        category_id: categoryId,
-        match_type: 'ELIMINATION',
-        bracket_position: 'SF2',
-        team1_id: promotedSfWinners['SF2_T1'],
-        team2_id: promotedSfWinners['SF2_T2'],
-        status: 'PENDING',
-        team1_score: 0,
-        team2_score: 0
+        tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF2',
+        team1_id: promotedSfWinners['SF2_T1'], team2_id: promotedSfWinners['SF2_T2'], status: 'PENDING', team1_score: 0, team2_score: 0
+      });
+
+      // 🚀 SEEDING REFACTOR: Instantiate Championship Finals and 3rd Place match containers as core wireframe parameters
+      matchesToInsert.push({
+        tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'FINALS',
+        team1_id: null, team2_id: null, status: 'PENDING', team1_score: 0, team2_score: 0
+      });
+
+      matchesToInsert.push({
+        tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: '3RD_PLACE',
+        team1_id: null, team2_id: null, status: 'PENDING', team1_score: 0, team2_score: 0
       });
 
       // Insert the complete bracket structure into the database
@@ -1310,12 +1317,7 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         t1_SF2 = customSeeds.SF2_T1_id;
         t2_SF2 = customSeeds.SF2_T2_id;
       } else {
-        // Automatic fallback pattern using group stage results
-        const { data: teams } = await supabase
-          .from('teams')
-          .select('*')
-          .eq('category_id', categoryId)
-          .eq('registration_status', 'CONFIRMED');
+        const { data: teams } = await supabase.from('teams').select('*').eq('category_id', categoryId).eq('registration_status', 'CONFIRMED');
 
         if (!teams || teams.length < 4) {
           return res.status(400).json({ error: "Insufficient teams. Standard automatic seeding requires at least 4 confirmed entries." });
@@ -1336,15 +1338,17 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         return res.status(400).json({ error: "Seeding Aborted: All 4 core Semi-Final positions must be assigned." });
       }
 
+      // 🚀 SEEDING REFACTOR: Instantiate complete 4-team elimination structure containing Finals and 3rd Place matches cleanly
       const { error: sfInsertError } = await supabase.from('matches').insert([
         { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF1', status: 'PENDING', team1_id: t1_SF1, team2_id: t2_SF1, team1_score: 0, team2_score: 0 },
-        { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF2', status: 'PENDING', team1_id: t1_SF2, team2_id: t2_SF2, team1_score: 0, team2_score: 0 }
+        { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF2', status: 'PENDING', team1_id: t1_SF2, team2_id: t2_SF2, team1_score: 0, team2_score: 0 },
+        { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'FINALS', status: 'PENDING', team1_id: null, team2_id: null, team1_score: 0, team2_score: 0 },
+        { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: '3RD_PLACE', status: 'PENDING', team1_id: null, team2_id: null, team1_score: 0, team2_score: 0 }
       ]);
       
       if (sfInsertError) throw sfInsertError;
     }
 
-    // 3. Dispatch global socket update alerts to synchronize all live dashboards instantly
     io.to(`tournament:${tournamentId}`).emit('standings-refresh'); 
     return res.json({ success: true, message: "Playoff knockout bracket structure successfully generated and synced!" });
 
@@ -1418,15 +1422,7 @@ app.put('/api/config/category-settings', requireAuth(['ADMIN']), async (req: Req
 
 app.post('/api/teams/register', async (req: Request, res: Response) => {
   const { 
-    tournamentId, 
-    categoryId, 
-    teamName, 
-    player1Name, 
-    player2Name, 
-    contactNo, 
-    address, 
-    email,
-    paymentProofUrl 
+    tournamentId, categoryId, teamName, player1Name, player2Name, contactNo, address, email, paymentProofUrl 
   } = req.body;
 
   try {
@@ -1494,7 +1490,7 @@ app.put('/api/teams/:id/group', requireAuth(['ADMIN', 'STAFF']), async (req: Req
   const { id } = req.params;
   const { groupId } = req.body;
   try {
-    const { data: updatedTeam, error } = await supabase
+    const { data: updatedTeam, error = null } = await supabase
       .from('teams')
       .update({ group_id: groupId })
       .eq('id', id)
@@ -1513,7 +1509,7 @@ app.put('/api/teams/:id', requireAuth(['ADMIN', 'STAFF']), async (req: Request, 
   const { id } = req.params;
   const { name } = req.body;
   try {
-    const { data: updatedTeam, error } = await supabase
+    const { data: updatedTeam, error = null } = await supabase
       .from('teams')
       .update({ team_name: name.trim() })
       .eq('id', id)

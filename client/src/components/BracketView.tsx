@@ -97,7 +97,7 @@ const RenderNode = ({ match, title }: RenderNodeProps) => {
  * ======================================================= */
 export const BracketView = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
-  const matches = useTournamentStore((state) => state.matches);
+  const matches = useTournamentStore((state) => state.matches) as Match[];
   const standings = useTournamentStore((state) => state.standings) as TeamStanding[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
 
@@ -108,7 +108,7 @@ export const BracketView = () => {
   const [finalizeLoading, setFinalizeLoading] = useState<boolean>(false);
   const [activeOverSlot, setActiveOverSlot] = useState<string | null>(null);
   
-  // 🚀 REFACTORED: Converted rigid key structure into a flexible string map to allow Quarter-Final overlays
+  // Converted rigid key structure into a flexible string map to allow Quarter-Final overlays
   const [bracketDraft, setBracketDraft] = useState<Record<string, PlayoffTeamDraft | null>>({});
 
   const databaseCategories = useMemo(() => {
@@ -148,8 +148,10 @@ export const BracketView = () => {
   const sf1 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'SF1'), [playoffMatches]);
   const sf2 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'SF2'), [playoffMatches]);
   const finals = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'FINALS'), [playoffMatches]);
+  // 🚀 UPDATED EXTRACTION: Query the 3rd Place Match row instance safely
+  const thirdPlace = useMemo(() => playoffMatches.find((m) => m.bracket_position === '3RD_PLACE'), [playoffMatches]);
 
-  // 🚀 REFACTORED: Compute if active canvas has quarter final records saved in state history arrays
+  // Compute if active canvas has quarter final records saved in state history arrays
   const hasActiveQuarterFinals = useMemo(() => {
     return !!(qf1 || qf2 || qf3 || qf4);
   }, [qf1, qf2, qf3, qf4]);
@@ -179,14 +181,13 @@ export const BracketView = () => {
     Object.keys(pools).forEach((poolLabel) => {
       const sortedPool = [...pools[poolLabel]].sort((a, b) => {
         if (b.wins !== a.wins) return b.wins - a.wins;
-        return (b.points_for - b.points_against) - (a.points_for - a.points_against);
+        return (b.points_for - b.points_against) - (b.points_for - b.points_against);
       });
 
       if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
       if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
     });
 
-    // 🚀 REFACTORED: Evaluate appropriate bracket size layout requirements dynamically based on qualified entries pool size
     const size = seeds.length > 4 ? 8 : 4;
     return { calculatedSeeds: seeds, targetBracketSize: size };
   }, [standings, selectedCategoryId]);
@@ -200,7 +201,6 @@ export const BracketView = () => {
 
     const filteredPool = calculatedSeeds.filter((team) => !assignedTeamIds.has(team.id));
 
-    // 🚀 REFACTORED: If an 8-team layout is required, inject a virtual, infinite BYE voucher asset card into the draggable selection pool
     if (targetBracketSize === 8) {
       const byeCardAsset: PlayoffTeamDraft = {
         id: 'BYE_WILDCARD',
@@ -292,7 +292,6 @@ export const BracketView = () => {
 
     setFinalizeLoading(true);
     
-    // Resolve standard vs system placeholder values safely before dispatching to backend
     const processIdParam = (nodeObj: PlayoffTeamDraft | null | undefined) => {
       if (!nodeObj) return null;
       if (nodeObj.id === 'BYE_WILDCARD') return 'BYE';
@@ -301,7 +300,7 @@ export const BracketView = () => {
 
     const corePayload = targetBracketSize === 8
       ? {
-          SF1_T1_id: null, SF1_T2_id: null, SF2_T1_id: null, SF2_T2_id: null, // Zeroed out for QF initialization steps
+          SF1_T1_id: null, SF1_T2_id: null, SF2_T1_id: null, SF2_T2_id: null, 
           QF1_T1_id: processIdParam(bracketDraft['QF1_T1']),
           QF1_T2_id: processIdParam(bracketDraft['QF1_T2']),
           QF2_T1_id: processIdParam(bracketDraft['QF2_T1']),
@@ -669,8 +668,11 @@ export const BracketView = () => {
           <div>➔</div>
         </div>
 
-        {/* TIER 3 COLUMN: CHAMPIONSHIP FINAL NODE */}
-        <div className="flex flex-col items-center justify-center">
+        {/* TIER 3 COLUMN: CHAMPIONSHIP FINAL & 3RD PLACE CONSOLATION NODES */}
+        {/* 🚀 REFACTORED CONTAINER: Stacked Finals and Consolation brackets vertically within the final lane */}
+        <div className="flex flex-col items-center justify-center gap-12">
+          
+          {/* TOP ENTRY: GRAND FINALS CARD */}
           {finals ? (
             <div className="relative group">
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono text-purple-600 dark:text-purple-400 font-black tracking-widest flex items-center gap-1 min-w-37.5 justify-center uppercase">
@@ -685,6 +687,23 @@ export const BracketView = () => {
               </span>
             </div>
           )}
+
+          {/* BOTTOM ENTRY: 3RD PLACE CONSOLATION CARD */}
+          {thirdPlace ? (
+            <div className="relative group border-t border-dashed border-slate-100 pt-8 dark:border-slate-800 w-full flex justify-center">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-amber-600 dark:text-amber-500 font-black tracking-widest flex items-center gap-1 min-w-44 justify-center uppercase">
+                <Trophy className="h-3 w-3 text-amber-500" /> Bronze Consolation
+              </div>
+              <RenderNode match={thirdPlace} title="3rd Place Playoff" />
+            </div>
+          ) : (
+            <div className="border border-dashed border-slate-100 bg-slate-50/40 h-24 w-64 rounded-xl flex items-center justify-center text-center p-4 dark:border-white/5 dark:bg-black/10 transition-all duration-200">
+              <span className="text-[9px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-wider font-medium">
+                Awaiting Consolation Seeds...
+              </span>
+            </div>
+          )}
+
         </div>
         
       </div>

@@ -48,7 +48,7 @@ export interface Match {
   match_type: 'ROUND_ROBIN' | 'ELIMINATION';
   
   // 🚀 UPDATED CONTRACT: Expanded bracket enum string union vectors to natively map Quarter-Final tracking keys
-  bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | null;
+  bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null;
   
   started_at: string | null;
   ended_at: string | null;
