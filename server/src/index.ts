@@ -67,7 +67,7 @@ interface Match {
   referee_name: string | null;
   pin_code: string | null;
   match_type: 'ROUND_ROBIN' | 'ELIMINATION';
-  bracket_position: 'SF1' | 'SF2' | 'FINALS' | null;
+  bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | null;
   started_at: string | null;
   ended_at: string | null;
   team1?: { team_name: string; player1_name?: string; player2_name?: string; group_id?: string | null };
@@ -390,7 +390,7 @@ app.get('/api/tournaments/:tournamentId/gateway', async (req: Request, res: Resp
     }
 
     const { data: categories, error: categoriesError } = await supabase
-      .from('tournament_categories_matrix')
+      .from('categories')
       .select('*')
       .eq('tournament_id', tournamentId);
 
@@ -1029,71 +1029,96 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
     if (uError) throw uError;
     delete activeLiveSessions[id];
 
-    const { data: t1 } = await supabase.from('teams').select('*').eq('id', match.team1_id).single();
-    if (t1) {
-      await supabase.from('teams').update({
-        matches_played: (t1.matches_played || 0) + 1,
-        wins: (t1.wins || 0) + (score1 > score2 ? 1 : 0),
-        points_for: (t1.points_for || 0) + score1,
-        points_against: (t1.points_against || 0) + score2
-      }).eq('id', match.team1_id);
+    // Update Round Robin statistics only if the match type is explicitly group stage play
+    if (match.match_type === 'ROUND_ROBIN') {
+      const { data: t1 } = await supabase.from('teams').select('*').eq('id', match.team1_id).single();
+      if (t1) {
+        await supabase.from('teams').update({
+          matches_played: (t1.matches_played || 0) + 1,
+          wins: (t1.wins || 0) + (score1 > score2 ? 1 : 0),
+          points_for: (t1.points_for || 0) + score1,
+          points_against: (t1.points_against || 0) + score2
+        }).eq('id', match.team1_id);
+      }
+
+      const { data: t2 } = await supabase.from('teams').select('*').eq('id', match.team2_id).single();
+      if (t2) {
+        await supabase.from('teams').update({
+          matches_played: (t2.matches_played || 0) + 1,
+          wins: (t2.wins || 0) + (score2 > score1 ? 1 : 0),
+          points_for: (t2.points_for || 0) + score2,
+          points_against: (t2.points_against || 0) + score1
+        }).eq('id', match.team2_id);
+      }
     }
 
-    const { data: t2 } = await supabase.from('teams').select('*').eq('id', match.team2_id).single();
-    if (t2) {
-      await supabase.from('teams').update({
-        matches_played: (t2.matches_played || 0) + 1,
-        wins: (t2.wins || 0) + (score2 > score1 ? 1 : 0),
-        points_for: (t2.points_for || 0) + score2,
-        points_against: (t2.points_against || 0) + score1
-      }).eq('id', match.team2_id);
-    }
+    // 🚀 FIXED: Polished Bracket Progression Automation & Dynamic Next Round Node Traversal Sync Layer
+    if (match.match_type === 'ELIMINATION') {
+      let nextPosition: 'SF1' | 'SF2' | 'FINALS' | null = null;
+      let nextTeamField: 'team1_id' | 'team2_id' = 'team1_id';
 
-    if (match.match_type === 'ELIMINATION' && (match.bracket_position === 'SF1' || match.bracket_position === 'SF2')) {
-      const siblingPosition = match.bracket_position === 'SF1' ? 'SF2' : 'SF1';
-      
-      const { data: siblingMatch } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('tournament_id', match.tournament_id)
-        .eq('category_id', match.category_id)
-        .eq('match_type', 'ELIMINATION')
-        .eq('bracket_position', siblingPosition)
-        .maybeSingle();
+      if (match.bracket_position === 'QF1') { nextPosition = 'SF1'; nextTeamField = 'team1_id'; }
+      else if (match.bracket_position === 'QF2') { nextPosition = 'SF1'; nextTeamField = 'team2_id'; }
+      else if (match.bracket_position === 'QF3') { nextPosition = 'SF2'; nextTeamField = 'team1_id'; }
+      else if (match.bracket_position === 'QF4') { nextPosition = 'SF2'; nextTeamField = 'team2_id'; }
+      else if (match.bracket_position === 'SF1') { nextPosition = 'FINALS'; nextTeamField = 'team1_id'; }
+      else if (match.bracket_position === 'SF2') { nextPosition = 'FINALS'; nextTeamField = 'team2_id'; }
 
-      if (siblingMatch && siblingMatch.status === 'FINISHED') {
-        const siblingWinnerId = siblingMatch.team1_score > siblingMatch.team2_score ? siblingMatch.team1_id : siblingMatch.team2_id;
-        
-        const sf1Winner = match.bracket_position === 'SF1' ? winnerId : siblingWinnerId;
-        const sf2Winner = match.bracket_position === 'SF2' ? winnerId : siblingWinnerId;
+      if (nextPosition) {
+        // Safe extraction configuration handling to process string representations of UUID primitives safely
+        const resolvedWinnerId = typeof winnerId === 'object' && winnerId !== null ? (winnerId as any).id : winnerId;
 
-        if (sf1Winner && sf2Winner) {
-          const { data: existingFinals } = await supabase
+        const { data: existingNext } = await supabase
+          .from('matches')
+          .select('id')
+          .eq('tournament_id', match.tournament_id)
+          .eq('category_id', match.category_id)
+          .eq('match_type', 'ELIMINATION')
+          .eq('bracket_position', nextPosition)
+          .maybeSingle();
+
+        let targetMatchId = null;
+
+        if (existingNext) {
+          const { data: updatedNext } = await supabase
             .from('matches')
+            .update({ [nextTeamField]: resolvedWinnerId })
+            .eq('id', existingNext.id)
             .select('id')
-            .eq('tournament_id', match.tournament_id)
-            .eq('category_id', match.category_id)
-            .eq('match_type', 'ELIMINATION')
-            .eq('bracket_position', 'FINALS')
             .maybeSingle();
-
-          if (!existingFinals) {
-            await supabase.from('matches').insert({
+          if (updatedNext) targetMatchId = updatedNext.id;
+        } else {
+          const { data: insertedNext } = await supabase
+            .from('matches')
+            .insert({
               tournament_id: match.tournament_id,
               category_id: match.category_id,
               match_type: 'ELIMINATION',
-              bracket_position: 'FINALS',
+              bracket_position: nextPosition,
               status: 'PENDING',
-              team1_id: sf1Winner,
-              team2_id: sf2Winner
+              [nextTeamField]: resolvedWinnerId,
+              team1_score: 0,
+              team2_score: 0
+            })
+            .select('id')
+            .maybeSingle();
+          if (insertedNext) targetMatchId = insertedNext.id;
+        }
+
+        // 🚀 CRITICAL FIX: Instantly resolve, query, and broadcast updated child nodes to align real-time director view modules
+        if (targetMatchId) {
+          const { data: fullNextMatch } = await supabase
+            .from('matches')
+            .select('*, team1:team1_id(team_name, player1_name, player2_name, group_id), team2:team2_id(team_name, player1_name, player2_name, group_id), category:category_id(name:category_name)')
+            .eq('id', targetMatchId)
+            .maybeSingle();
+
+          if (fullNextMatch) {
+            io.to(`tournament:${match.tournament_id}`).emit('score-live', {
+              ...fullNextMatch,
+              refereeName: null,
+              pinCode: null
             });
-          } else {
-            await supabase.from('matches')
-              .update({
-                team1_id: sf1Winner,
-                team2_id: sf2Winner
-              })
-              .eq('id', existingFinals.id);
           }
         }
       }
@@ -1157,7 +1182,6 @@ app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, r
  * REGISTRATION, POOLS, & AUTOMATED PLAYOFF GENERATORS
  * ======================================================= */
 
-// Insert this updated route handler inside server/src/index.ts
 app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId, seedingMethod, customSeeds } = req.body;
   if (!tournamentId || !categoryId) {
@@ -1460,7 +1484,6 @@ app.post('/api/teams/register', async (req: Request, res: Response) => {
     io.to(`tournament:${tournamentId}`).emit('standings-refresh');
     
     return res.json(newTeam);
-
   } catch (err) {
     console.error("Registration processing exception crash:", err);
     return res.status(500).json({ error: "Failed saving team entry into database system." });
