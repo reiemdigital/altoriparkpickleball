@@ -1,11 +1,8 @@
 // client/src/components/StandingsTable.tsx
 import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/useTournamentStore';
-import { Trophy, Layers } from 'lucide-react';
+import { Trophy, Layers, Lock } from 'lucide-react';
 
-/** =======================================================
- * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
- * ======================================================= */
 interface TeamStanding {
   id: string;
   tournament_id: string;
@@ -26,23 +23,18 @@ interface CategoryMapping {
 }
 
 export const StandingsTable = () => {
-  // Pull standings, matches, and metadata categories out of global state cache hooks
   const standings = useTournamentStore((state) => state.standings) as TeamStanding[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const matches = useTournamentStore((state) => state.matches);
   
-  // 🛡️ PERFORMANCE BEST PRACTICE: Track selection by unique database key ID instead of mutable strings
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
-  // Extract real-time categories array directly from dynamic database gate context
   const databaseCategories = useMemo(() => {
     return (gatewayData?.categories || []) as CategoryMapping[];
   }, [gatewayData]);
 
-  // ⚡ AUTOMATED STATE LIFECYCLE SYNC LAYER
   useEffect(() => {
     if (databaseCategories.length > 0 && !selectedCategoryId) {
-      // Defer macro-task execution timing to break synchronous re-rendering loops seamlessly
       const deferInit = setTimeout(() => {
         setSelectedCategoryId(databaseCategories[0].category_id);
       }, 0);
@@ -50,28 +42,79 @@ export const StandingsTable = () => {
     }
   }, [databaseCategories, selectedCategoryId]);
 
-  // 1. Filter out teams belonging strictly to the resolved category ID AND must have been seeded officially
-  const filteredTeams = useMemo(() => {
-    if (!selectedCategoryId) return [];
+  // 🚀 REFACTORED: Determine if the round-robin group phase has concluded
+  const isGroupStageFinished = useMemo(() => {
+    if (!selectedCategoryId) return false;
     
-    // SENIOR DEV FIX: Check if official match fixtures exist for this category.
-    // If no matches exist, the admin hasn't clicked "Seed Pools" yet, so keep the table hidden.
-    const isCategoryOfficiallySeeded = matches.some(match => match.category_id === selectedCategoryId);
+    const categoryMatches = matches.filter(m => m.category_id === selectedCategoryId);
+    const roundRobinMatches = categoryMatches.filter(m => m.match_type === 'ROUND_ROBIN');
+    
+    if (roundRobinMatches.length === 0) return false;
+    
+    // Group stage is done if all round robin matches are FINISHED and elimination matches have started
+    const allRoundRobinFinished = roundRobinMatches.every(m => m.status === 'FINISHED');
+    const eliminationStarted = categoryMatches.some(m => m.match_type === 'ELIMINATION');
+    
+    return allRoundRobinFinished || eliminationStarted;
+  }, [matches, selectedCategoryId]);
+
+  // 🚀 REFACTORED: Dynamically re-calculate standings exclusively using ROUND_ROBIN match records
+  const computedStandings = useMemo(() => {
+    if (!selectedCategoryId) return [];
+
+    const isCategoryOfficiallySeeded = matches.some(m => m.category_id === selectedCategoryId);
     if (!isCategoryOfficiallySeeded) return [];
 
-    return standings.filter(team => 
+    // Onboard teams belonging to this category segment
+    const baseTeams = standings.filter(team => 
       team.category_id === selectedCategoryId && 
       team.group_id && 
       team.group_id.trim() !== '' && 
       team.group_id !== 'Pending Pool Seeding'
     );
+
+    // Filter down to completed group stage matches for this specific category tier
+    const completedGroupMatches = matches.filter(m => 
+      m.category_id === selectedCategoryId && 
+      m.match_type === 'ROUND_ROBIN' && 
+      m.status === 'FINISHED'
+    );
+
+    // Build fresh, insulated metrics maps
+    return baseTeams.map(team => {
+      let matches_played = 0;
+      let wins = 0;
+      let points_for = 0;
+      let points_against = 0;
+
+      completedGroupMatches.forEach(match => {
+        if (match.team1_id === team.id) {
+          matches_played++;
+          points_for += match.team1_score;
+          points_against += match.team2_score;
+          if (match.team1_score > match.team2_score) wins++;
+        } else if (match.team2_id === team.id) {
+          matches_played++;
+          points_for += match.team2_score;
+          points_against += match.team1_score;
+          if (match.team2_score > match.team1_score) wins++;
+        }
+      });
+
+      return {
+        ...team,
+        matches_played,
+        wins,
+        points_for,
+        points_against
+      };
+    });
   }, [standings, selectedCategoryId, matches]);
 
-  // 2. Separate filtered teams into individual round-robin pools (Group A, Group B, etc.)
   const groupedStandings = useMemo(() => {
     const groups: Record<string, TeamStanding[]> = {};
 
-    filteredTeams.forEach((team) => {
+    computedStandings.forEach((team) => {
       const poolLabel = team.group_id as string; 
       if (!groups[poolLabel]) {
         groups[poolLabel] = [];
@@ -79,11 +122,9 @@ export const StandingsTable = () => {
       groups[poolLabel].push(team);
     });
 
-    // Sort teams internally inside each independent group bucket using snake_case properties
     Object.keys(groups).forEach((poolLabel) => {
       groups[poolLabel].sort((a, b) => {
         if (b.wins !== a.wins) return b.wins - a.wins;
-        // Tie-breaker fallback: Point Differential
         const diffA = a.points_for - a.points_against;
         const diffB = b.points_for - b.points_against;
         return diffB - diffA;
@@ -91,9 +132,8 @@ export const StandingsTable = () => {
     });
 
     return groups;
-  }, [filteredTeams]);
+  }, [computedStandings]);
 
-  // Alpha-sort group keys so Group A always renders before Group B
   const sortedGroupLabels = useMemo(() => {
     return Object.keys(groupedStandings).sort((a, b) => a.localeCompare(b));
   }, [groupedStandings]);
@@ -105,9 +145,17 @@ export const StandingsTable = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-white/5 pb-4 transition-colors duration-200">
         <div className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
-            Live Tournament Standings
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
+              Live Tournament Standings
+            </h2>
+            {/* 🚀 UI EMBED: Visible status tag that communicates when metrics are locked */}
+            {isGroupStageFinished && (
+              <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 uppercase tracking-wider">
+                <Lock className="h-2.5 w-2.5" /> Pools Locked
+              </span>
+            )}
+          </div>
         </div>
 
         {databaseCategories.length > 0 && (
@@ -125,7 +173,7 @@ export const StandingsTable = () => {
         )}
       </div>
 
-      {filteredTeams.length === 0 ? (
+      {computedStandings.length === 0 ? (
         <p className="text-xs text-slate-400 dark:text-slate-500 italic py-8 text-center bg-slate-50/50 dark:bg-white/[0.02] rounded-xl border border-dashed border-slate-200 dark:border-white/5 transition-all duration-200">
           No active standings available. This division may be empty or awaiting pool seeding.
         </p>
@@ -136,7 +184,6 @@ export const StandingsTable = () => {
 
             return (
               <div key={groupLabel} className="space-y-3">
-                {/* POOL HEADER BADGE */}
                 <div className="flex items-center gap-1.5 px-1">
                   <Layers className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                   <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -144,7 +191,6 @@ export const StandingsTable = () => {
                   </h3>
                 </div>
 
-                {/* STANDALONE POOL DATA LEADERBOARD */}
                 <div className="overflow-x-auto border border-slate-100 rounded-xl dark:border-white/5 transition-colors duration-200">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -161,8 +207,6 @@ export const StandingsTable = () => {
                       {poolTeams.map((team, index) => {
                         const diff = team.points_for - team.points_against;
                         const losses = team.matches_played - team.wins;
-                        
-                        // Highlight top 2 teams PER POOL for playoff qualifications
                         const qualifiesForPlayoffs = index < 2;
 
                         return (
@@ -176,7 +220,7 @@ export const StandingsTable = () => {
                               <span className={`inline-block w-6 text-center ${
                                 qualifiesForPlayoffs ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'
                               }`}>
-                                0{index + 1}
+                                0index + 1
                               </span>
                             </td>
                             <td className="py-3 px-4">
