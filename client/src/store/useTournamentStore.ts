@@ -46,11 +46,13 @@ export interface Match {
   referee_name: string | null;
   pin_code: string | null;
   match_type: 'ROUND_ROBIN' | 'ELIMINATION';
-  bracket_position: 'SF1' | 'SF2' | 'FINALS' | null;
+  
+  // 🚀 UPDATED CONTRACT: Expanded bracket enum string union vectors to natively map Quarter-Final tracking keys
+  bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | null;
+  
   started_at: string | null;
   ended_at: string | null;
   
-  // 🚀 FIXED: Extended interface contract to support direct relational group data lookup
   team1?: { team_name: string; group_id?: string | null };
   team2?: { team_name: string; group_id?: string | null };
   category?: { name: string };

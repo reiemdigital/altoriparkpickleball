@@ -31,7 +31,10 @@ interface CustomMatchExtension {
   team1_id: string;
   team2_id: string;
   match_type?: 'ROUND_ROBIN' | 'ELIMINATION';
-  bracket_position?: 'SF1' | 'SF2' | 'FINALS' | null;
+  
+  // 🚀 UPDATED CONTRACT: Aligned with the expanded store specifications to prevent compilation breakage on QF node hydrations
+  bracket_position?: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | null;
+  
   team1?: { team_name: string };
   team2?: { team_name: string };
   category?: { name: string };
@@ -155,9 +158,16 @@ export const AdminPanel = () => {
   const processedPendingMatches = useMemo(() => {
     const pending = matches.filter((m) => m.status === 'PENDING');
     
+    // 🚀 FIXED: Filter out matches containing a system "BYE" wildcard token to safeguard queue layout logic
+    const nonByePending = pending.filter(m => {
+      const t1Name = m.team1?.team_name?.toUpperCase() || '';
+      const t2Name = m.team2?.team_name?.toUpperCase() || '';
+      return t1Name !== 'BYE' && t2Name !== 'BYE';
+    });
+    
     const parsedQuery = searchQuery.trim().toLowerCase();
     const filteredMatches = parsedQuery 
-      ? pending.filter(m => {
+      ? nonByePending.filter(m => {
           const nameT1 = m.team1?.team_name?.toLowerCase() || '';
           const nameT2 = m.team2?.team_name?.toLowerCase() || '';
           const division = m.category?.name?.toLowerCase() || '';
@@ -172,7 +182,7 @@ export const AdminPanel = () => {
                  assignedGroup.includes(parsedQuery) ||
                  positionBracket.includes(parsedQuery);
         })
-      : pending;
+      : nonByePending;
 
     return [...filteredMatches].sort((a, b) => {
       const aBlocked = busyTeamIds.has(a.team1_id) || busyTeamIds.has(a.team2_id);
@@ -422,13 +432,12 @@ export const AdminPanel = () => {
                             </span>
                           </span>
 
-                          {/* Category and Group Bracket Labels container wrapper line */}
                           <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center select-all w-full min-w-0">
                             <span className="flex items-center gap-1 min-w-0 truncate max-w-full">
                               <Layers className="h-3 w-3 text-purple-500 shrink-0" /> 
                               <span className="truncate">{match.category?.name || "General Category"}</span>
                               
-                              {/* 🚀 FIXED: Group Bracket element nested inline right next to the category name text node */}
+                              {/* 🚀 FIXED: Render logic automatically accommodates new QF1-QF4 strings with standard elimination badging */}
                               {(() => {
                                 const teamProfile = standings.find((t) => t.id === match.team1_id);
                                 const poolLabel = match.match_type === 'ELIMINATION' 
