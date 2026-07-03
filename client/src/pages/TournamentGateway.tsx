@@ -124,9 +124,23 @@ export function TournamentGateway() {
     // Join isolated socket stream channel
     socket.emit('join-tournament-room', tournamentId);
 
-    // 📡 TELEMETRY ENGINE: Listen for live participant additions or parameter updates
+    // 📡 TELEMETRY ENGINE: Listen for live participant updates
     socket.on('registration-updated', () => {
       fetchGatewayInfo();
+      
+      // 🚀 REACTIVE ACCORDION RE-REFRESH: Automatically updates open lists
+      setExpandedCategoryTeams(prevExpanded => {
+        Object.entries(prevExpanded).forEach(([catId, isExpanded]) => {
+          if (isExpanded) {
+            axios.get(`${SOCKET_URL}/api/categories/${catId}/public-roster`)
+              .then(res => {
+                setCategoryTeamsData(prevData => ({ ...prevData, [catId]: res.data || [] }));
+              })
+              .catch(err => console.error("Roster background pipeline synchronization failure:", err));
+          }
+        });
+        return prevExpanded;
+      });
     });
     
     socket.on('tournament-metadata-updated', () => {
@@ -140,17 +154,15 @@ export function TournamentGateway() {
     };
   }, [tournamentId, fetchGatewayInfo]);
 
-  // 🔥 Type casting data layers directly to eliminate structural friction
+  // Type casting data layers directly to eliminate structural friction
   const tournament = gatewayData.tournament;
   const stats = gatewayData.stats;
   const isAdmin = gatewayData.isAdmin;
 
-  // Wrap in useMemo to solve dependency loop triggers cleanly
   const categories = useMemo(() => {
     return (gatewayData.categories || []) as Category[];
   }, [gatewayData.categories]);
 
-  // Avoid calling setState synchronously within an effect by using macro-task scheduling
   useEffect(() => {
     if (categories && categories.length > 0 && !pubCategory) {
       const deferTask = setTimeout(() => {
@@ -160,7 +172,6 @@ export function TournamentGateway() {
     }
   }, [categories, pubCategory]);
 
-  // TYPE-SAFE DYNAMIC FORMAT DETECTOR
   const selectedPubCatObj = useMemo(() => {
     return categories.find((c: Category) => c.category_name === pubCategory);
   }, [categories, pubCategory]);
@@ -169,7 +180,6 @@ export function TournamentGateway() {
     return selectedPubCatObj?.category_type === 'Singles';
   }, [selectedPubCatObj]);
 
-  // Routes data gathering requests to the un-gated public endpoint route
   const handleToggleTeamsDropdown = async (categoryId: string) => {
     const isCurrentlyExpanded = !!expandedCategoryTeams[categoryId];
     setExpandedCategoryTeams(prev => ({ ...prev, [categoryId]: !isCurrentlyExpanded }));
@@ -179,9 +189,7 @@ export function TournamentGateway() {
     setLoadingTeams(prev => ({ ...prev, [categoryId]: true }));
     try {
       const res = await axios.get(`${SOCKET_URL}/api/categories/${categoryId}/public-roster`);
-      const localizedDivisionTeams: TeamParticipant[] = res.data || [];
-      
-      setCategoryTeamsData(prev => ({ ...prev, [categoryId]: localizedDivisionTeams }));
+      setCategoryTeamsData(prev => ({ ...prev, [categoryId]: res.data || [] }));
     } catch (err) {
       console.error("Failed to extract active division rosters asynchronously:", err);
     } finally {
@@ -189,7 +197,6 @@ export function TournamentGateway() {
     }
   };
 
-  // Submit request handler for creating new categories (Admin)
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -225,7 +232,6 @@ export function TournamentGateway() {
     }
   };
 
-  // Submit request handler to persist complete administrative division changes via modal
   const handleUpdateCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
@@ -256,7 +262,6 @@ export function TournamentGateway() {
     }
   };
 
-  // Clean execution call to process state-driven database deletion securely
   const handleExecuteCategoryDelete = async () => {
     if (!categoryToDelete) return;
     setDeleteSubmitting(true);
@@ -279,7 +284,6 @@ export function TournamentGateway() {
     }
   };
 
-  // Public Onboarding Form Handler
   const handlePublicRegistrationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tournamentId || !selectedPubCatObj) {
@@ -426,8 +430,6 @@ export function TournamentGateway() {
             <p className="text-xs text-slate-500 mt-0.5">Check out the active brackets, open entry slots, and cash prize breakdowns.</p>
           </div>
           <div className="flex items-center gap-2">
-            
-            {/* SECURITY LAYER: Admin tools for Create and Edit switches */}
             {isAdmin && (
               <>
                 <button
@@ -461,17 +463,8 @@ export function TournamentGateway() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {categories.map((cat: Category) => {
             const maxSlots = cat.max_slots || 16;
-            
-            const filledSlots = typeof cat.registered_teams_count === 'number' 
-              ? cat.registered_teams_count 
-              : typeof cat.available_slots_remaining === 'number'
-                ? Math.max(0, maxSlots - cat.available_slots_remaining)
-                : 0;
-
-            const remainingSlots = typeof cat.available_slots_remaining === 'number'
-              ? cat.available_slots_remaining
-              : Math.max(0, maxSlots - filledSlots);
-
+            const filledSlots = cat.registered_teams_count || 0;
+            const remainingSlots = cat.available_slots_remaining ?? Math.max(0, maxSlots - filledSlots);
             const fillPercentage = Math.min(100, (filledSlots / maxSlots) * 100);
 
             let progressBarColor = "bg-[#088505]"; 
@@ -566,7 +559,7 @@ export function TournamentGateway() {
                     <div className="text-slate-600 dark:text-slate-300 font-bold">🥈 2nd Place</div>
                     <div className="text-slate-800 dark:text-slate-200 font-black mt-0.5">₱{cat.prize_second || '0.00'}</div>
                   </div>
-                  <div className="bg-amber-700/4 border border-amber-700/20 rounded-lg p-2 dark:bg-amber-700/5 dark:border-amber-700/10">
+                  <div className="bg-amber-700/4 border border-amber-700/20 rounded-lg p-2 dark:bg-amber-700/5 dark:bg-amber-700/10">
                     <div className="text-amber-700 dark:text-amber-600 font-bold">🥉 3rd Place</div>
                     <div className="text-slate-800 dark:text-slate-200 font-black mt-0.5">₱{cat.prize_third || '0.00'}</div>
                   </div>
