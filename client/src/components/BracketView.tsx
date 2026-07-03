@@ -97,6 +97,7 @@ const RenderNode = ({ match, title }: RenderNodeProps) => {
  * ======================================================= */
 export const BracketView = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  // 🚀 FIXED TYPE OVERLAP: Type asserted as Match[] globally inside extraction scope
   const matches = useTournamentStore((state) => state.matches) as Match[];
   const standings = useTournamentStore((state) => state.standings) as TeamStanding[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
@@ -148,7 +149,6 @@ export const BracketView = () => {
   const sf1 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'SF1'), [playoffMatches]);
   const sf2 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'SF2'), [playoffMatches]);
   const finals = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'FINALS'), [playoffMatches]);
-  // 🚀 UPDATED EXTRACTION: Query the 3rd Place Match row instance safely
   const thirdPlace = useMemo(() => playoffMatches.find((m) => m.bracket_position === '3RD_PLACE'), [playoffMatches]);
 
   // Compute if active canvas has quarter final records saved in state history arrays
@@ -635,78 +635,88 @@ export const BracketView = () => {
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-6 min-w-180 py-4 select-none">
+      {/* MAIN SYSTEM BRACKET WRAPPER */}
+      <div className="flex flex-col gap-10">
         
-        {/* TIER 1 COLUMN: QUARTER-FINALS (RENDERED CONDITIONALLY) */}
-        {hasActiveQuarterFinals && (
-          <>
-            <div className="flex flex-col gap-4">
-              <RenderNode match={qf1} title="Quarterfinal 1" />
-              <RenderNode match={qf2} title="Quarterfinal 2" />
-              <RenderNode match={qf3} title="Quarterfinal 3" />
-              <RenderNode match={qf4} title="Quarterfinal 4" />
-            </div>
-            
-            <div className="flex flex-col justify-around h-96 text-slate-300 dark:text-slate-700 font-mono text-xs">
-              <div className="h-1/4 flex items-center">➔</div>
-              <div className="h-1/4 flex items-center">➔</div>
-              <div className="h-1/4 flex items-center">➔</div>
-              <div className="h-1/4 flex items-center">➔</div>
-            </div>
-          </>
-        )}
-
-        {/* TIER 2 COLUMN: SEMI-FINALS */}
-        <div className="flex flex-col gap-16 justify-around h-full py-4">
-          <RenderNode match={sf1} title="Semifinal 1" />
-          <RenderNode match={sf2} title="Semifinal 2" />
-        </div>
-
-        {/* TIER NODE CONNECT MATRIX FLOW LINES */}
-        <div className="flex flex-col justify-around h-48 text-slate-300 dark:text-slate-700 font-mono text-xs">
-          <div>➔</div>
-          <div>➔</div>
-        </div>
-
-        {/* TIER 3 COLUMN: CHAMPIONSHIP FINAL & 3RD PLACE CONSOLATION NODES */}
-        {/* 🚀 REFACTORED CONTAINER: Stacked Finals and Consolation brackets vertically within the final lane */}
-        <div className="flex flex-col items-center justify-center gap-12">
+        {/* UPPER ROW: ACTIVE SINGLE-ELIMINATION TOURNAMENT FLOW LINES */}
+        <div className="flex items-center justify-center gap-6 min-w-180 py-4 select-none">
           
-          {/* TOP ENTRY: GRAND FINALS CARD */}
-          {finals ? (
-            <div className="relative group">
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono text-purple-600 dark:text-purple-400 font-black tracking-widest flex items-center gap-1 min-w-37.5 justify-center uppercase">
-                <Trophy className="h-3 w-3 animate-bounce" /> Championship Final
+          {/* TIER 1 COLUMN: QUARTER-FINALS */}
+          {hasActiveQuarterFinals && (
+            <>
+              <div className="flex flex-col gap-4">
+                <RenderNode match={qf1} title="Quarterfinal 1" />
+                <RenderNode match={qf2} title="Quarterfinal 2" />
+                <RenderNode match={qf3} title="Quarterfinal 3" />
+                <RenderNode match={qf4} title="Quarterfinal 4" />
               </div>
-              <RenderNode match={finals} title="Grand Finals" />
-            </div>
-          ) : (
-            <div className="border border-dashed border-slate-200 bg-slate-50 h-28 w-64 rounded-xl flex items-center justify-center text-center p-4 dark:border-white/5 dark:bg-black/20 transition-all duration-200">
-              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-wider font-medium">
-                Awaiting Match Winners...
-              </span>
-            </div>
+              
+              <div className="flex flex-col justify-around h-96 text-slate-300 dark:text-slate-700 font-mono text-xs">
+                <div className="h-1/4 flex items-center">➔</div>
+                <div className="h-1/4 flex items-center">➔</div>
+                <div className="h-1/4 flex items-center">➔</div>
+                <div className="h-1/4 flex items-center">➔</div>
+              </div>
+            </>
           )}
 
-          {/* BOTTOM ENTRY: 3RD PLACE CONSOLATION CARD */}
-          {thirdPlace ? (
-            <div className="relative group border-t border-dashed border-slate-100 pt-8 dark:border-slate-800 w-full flex justify-center">
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-amber-600 dark:text-amber-500 font-black tracking-widest flex items-center gap-1 min-w-44 justify-center uppercase">
-                <Trophy className="h-3 w-3 text-amber-500" /> Bronze Consolation
-              </div>
-              <RenderNode match={thirdPlace} title="3rd Place Playoff" />
-            </div>
-          ) : (
-            <div className="border border-dashed border-slate-100 bg-slate-50/40 h-24 w-64 rounded-xl flex items-center justify-center text-center p-4 dark:border-white/5 dark:bg-black/10 transition-all duration-200">
-              <span className="text-[9px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-wider font-medium">
-                Awaiting Consolation Seeds...
-              </span>
-            </div>
-          )}
+          {/* TIER 2 COLUMN: SEMI-FINALS */}
+          <div className="flex flex-col gap-16 justify-around h-full py-4">
+            <RenderNode match={sf1} title="Semifinal 1" />
+            <RenderNode match={sf2} title="Semifinal 2" />
+          </div>
 
+          {/* TIER NODE CONNECT MATRIX FLOW LINES */}
+          <div className="flex flex-col justify-around h-48 text-slate-300 dark:text-slate-700 font-mono text-xs">
+            <div>➔</div>
+            <div>➔</div>
+          </div>
+
+          {/* TIER 3 COLUMN: CHAMPIONSHIP FINAL NODE (🚀 ISOLATED FOR SKEW PROTECTION) */}
+          <div className="flex flex-col items-center justify-center">
+            {finals ? (
+              <div className="relative group">
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono text-purple-600 dark:text-purple-400 font-black tracking-widest flex items-center gap-1 min-w-37.5 justify-center uppercase">
+                  <Trophy className="h-3 w-3 animate-bounce" /> Championship Final
+                </div>
+                <RenderNode match={finals} title="Grand Finals" />
+              </div>
+            ) : (
+              <div className="border border-dashed border-slate-200 bg-slate-50 h-28 w-64 rounded-xl flex items-center justify-center text-center p-4 dark:border-white/5 dark:bg-black/20 transition-all duration-200">
+                <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-wider font-medium">
+                  Awaiting Match Winners...
+                </span>
+              </div>
+            )}
+          </div>
+          
         </div>
-        
+
+        {/* 🚀 LOWER ROW: 3RD PLACE CONSOLATION MATRICES (DECOUPLED CONSOLIDATION TRADING FLOORS) */}
+        <div className="mt-4 pt-6 border-t border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center">
+          <div className="text-center mb-4">
+            <span className="text-[10px] font-mono text-amber-600 dark:text-amber-500 font-black tracking-widest uppercase flex items-center justify-center gap-1">
+              <Trophy className="h-3 w-3 text-amber-500" /> Bronze Medal Consolation Playoff
+            </span>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+              Losing teams from Semifinal 1 and Semifinal 2 compete directly to determine the 3rd place podium position.
+            </p>
+          </div>
+          <div className="flex justify-center select-none">
+            {thirdPlace ? (
+              <RenderNode match={thirdPlace} title="3rd Place Playoff" />
+            ) : (
+              <div className="border border-dashed border-slate-100 bg-slate-50/40 h-24 w-64 rounded-xl flex items-center justify-center text-center p-4 dark:border-white/5 dark:bg-black/10 transition-all duration-200">
+                <span className="text-[9px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-wider font-medium">
+                  Awaiting Consolation Seeds...
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
+      
     </div>
   );
 };
