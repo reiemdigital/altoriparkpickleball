@@ -49,7 +49,11 @@ interface TeamParticipant {
 export function TournamentGateway() {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
-  const { gatewayData, setGatewayData } = useTournamentStore();
+  
+  // 🚀 REFACTORED: Strict atomic state selectors ensuring reactive synchronization re-renders
+  const gatewayData = useTournamentStore((state) => state.gatewayData);
+  const setGatewayData = useTournamentStore((state) => state.setGatewayData);
+
   const [loading, setLoading] = useState(true);
   
   // 🛠️ ADMIN & MODAL MATRIX STATE HANDLERS
@@ -124,11 +128,11 @@ export function TournamentGateway() {
     // Join isolated socket stream channel
     socket.emit('join-tournament-room', tournamentId);
 
-    // 📡 TELEMETRY ENGINE: Listen for live participant updates
+    // 📡 TELEMETRY ENGINE: Listen for live participant additions or parameter updates
     socket.on('registration-updated', () => {
       fetchGatewayInfo();
       
-      // 🚀 REACTIVE ACCORDION RE-REFRESH: Automatically updates open lists
+      // REACTIVE ACCORDION RE-REFRESH: Automatically updates open lists
       setExpandedCategoryTeams(prevExpanded => {
         Object.entries(prevExpanded).forEach(([catId, isExpanded]) => {
           if (isExpanded) {
@@ -159,10 +163,12 @@ export function TournamentGateway() {
   const stats = gatewayData.stats;
   const isAdmin = gatewayData.isAdmin;
 
+  // Wrap in useMemo to solve dependency loop triggers cleanly
   const categories = useMemo(() => {
     return (gatewayData.categories || []) as Category[];
   }, [gatewayData.categories]);
 
+  // Avoid calling setState synchronously within an effect by using macro-task scheduling
   useEffect(() => {
     if (categories && categories.length > 0 && !pubCategory) {
       const deferTask = setTimeout(() => {
@@ -172,6 +178,7 @@ export function TournamentGateway() {
     }
   }, [categories, pubCategory]);
 
+  // TYPE-SAFE DYNAMIC FORMAT DETECTOR
   const selectedPubCatObj = useMemo(() => {
     return categories.find((c: Category) => c.category_name === pubCategory);
   }, [categories, pubCategory]);
@@ -180,6 +187,7 @@ export function TournamentGateway() {
     return selectedPubCatObj?.category_type === 'Singles';
   }, [selectedPubCatObj]);
 
+  // Routes data gathering requests to the un-gated public endpoint route
   const handleToggleTeamsDropdown = async (categoryId: string) => {
     const isCurrentlyExpanded = !!expandedCategoryTeams[categoryId];
     setExpandedCategoryTeams(prev => ({ ...prev, [categoryId]: !isCurrentlyExpanded }));
@@ -197,6 +205,7 @@ export function TournamentGateway() {
     }
   };
 
+  // Submit request handler for creating new categories (Admin)
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -232,6 +241,7 @@ export function TournamentGateway() {
     }
   };
 
+  // Submit request handler to persist complete administrative division changes via modal
   const handleUpdateCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
@@ -262,6 +272,7 @@ export function TournamentGateway() {
     }
   };
 
+  // Clean execution call to process state-driven database deletion securely
   const handleExecuteCategoryDelete = async () => {
     if (!categoryToDelete) return;
     setDeleteSubmitting(true);
@@ -284,6 +295,7 @@ export function TournamentGateway() {
     }
   };
 
+  // Public Onboarding Form Handler
   const handlePublicRegistrationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tournamentId || !selectedPubCatObj) {
@@ -410,12 +422,12 @@ export function TournamentGateway() {
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{stats.registeredPlayersCount} Participants</div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Teams officially registered and ready to play.</p>
         </div>
-        <div className="p-5 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl text-left shadow-xs transition-colors duration-200">
+        <div className="p-5 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl text-left shadow-xs duration-200">
           <div className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tournament Status</div>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 uppercase font-mono tracking-tight">{tournament?.status}</div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">The current stage of this tournament timeline.</p>
         </div>
-        <div className="p-5 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl text-left shadow-xs transition-colors duration-200">
+        <div className="p-5 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl text-left shadow-xs duration-200">
           <div className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tournament Style</div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">Dual-Stage</div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Round-Robin play matchups leading into single-elimination brackets.</p>
@@ -430,6 +442,8 @@ export function TournamentGateway() {
             <p className="text-xs text-slate-500 mt-0.5">Check out the active brackets, open entry slots, and cash prize breakdowns.</p>
           </div>
           <div className="flex items-center gap-2">
+            
+            {/* SECURITY LAYER: Admin tools for Create and Edit switches */}
             {isAdmin && (
               <>
                 <button
@@ -462,9 +476,14 @@ export function TournamentGateway() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {categories.map((cat: Category) => {
+            // 🚀 REFACTORED: Compute exact confirmed count from state cache or rely on backend gateway properties
+            const confirmedRosterCount = categoryTeamsData[cat.category_id]
+              ? categoryTeamsData[cat.category_id].filter(t => t.registration_status === 'CONFIRMED').length
+              : (cat.registered_teams_count || 0);
+
             const maxSlots = cat.max_slots || 16;
-            const filledSlots = cat.registered_teams_count || 0;
-            const remainingSlots = cat.available_slots_remaining ?? Math.max(0, maxSlots - filledSlots);
+            const filledSlots = confirmedRosterCount;
+            const remainingSlots = Math.max(0, maxSlots - filledSlots);
             const fillPercentage = Math.min(100, (filledSlots / maxSlots) * 100);
 
             let progressBarColor = "bg-[#088505]"; 
@@ -575,8 +594,8 @@ export function TournamentGateway() {
                       <Layers className="h-3.5 w-3.5 text-purple-500" />
                       {expandedCategoryTeams[cat.category_id] ? "Hide Team Rosters" : "View Registered Rosters"}
                     </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
-                      ({filledSlots} Active)
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+                      ({filledSlots} Confirmed)
                     </span>
                   </button>
 
