@@ -67,7 +67,6 @@ interface Match {
   referee_name: string | null;
   pin_code: string | null;
   match_type: 'ROUND_ROBIN' | 'ELIMINATION';
-  // 🚀 UPDATED CONTRACT: Appended 3RD_PLACE positioning key variants
   bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null;
   started_at: string | null;
   ended_at: string | null;
@@ -326,6 +325,27 @@ app.get('/api/admin/tournaments/:tournamentId/teams', requireAuth(['ADMIN', 'STA
     return res.json(data || []);
   } catch {
     return res.status(500).json({ error: 'Failed to extract verification registry records.' });
+  }
+});
+
+/** =======================================================
+ * 🚀 NEW UN-GATED PUBLIC SCOPED DIVISION ROSTER ENDPOINT
+ * ======================================================= */
+app.get('/api/categories/:categoryId/public-roster', async (req: Request, res: Response) => {
+  const { categoryId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('teams')
+      .select('id, category_id, tournament_id, team_name, player1_name, player2_name, registration_status')
+      .eq('category_id', categoryId)
+      .order('registration_status', { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.json(data || []);
+  } catch {
+    return res.status(500).json({ error: "Failed to extract public division roster records cleanly." });
   }
 });
 
@@ -683,7 +703,7 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
   }
 });
 
-app.post('/api/tournaments/:tournamentId/categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   const { 
     category_name, gender_division, category_type, entry_fee, max_slots, 
@@ -772,7 +792,6 @@ app.delete('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, r
 app.get('/api/tournaments/:tournamentId/matches', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
-    // 🚀 REFACTORED: Appended explicit selection of group_id inside relational team selectors
     const { data: matches, error } = await supabase
       .from('matches')
       .select('*, team1:team1_id(team_name, player1_name, player2_name, group_id), team2:team2_id(team_name, player1_name, player2_name, group_id), category:category_id(name:category_name)')
@@ -1030,7 +1049,6 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
     if (uError) throw uError;
     delete activeLiveSessions[id];
 
-    // Update Round Robin statistics only if the match type is explicitly group stage play
     if (match.match_type === 'ROUND_ROBIN') {
       const { data: t1 } = await supabase.from('teams').select('*').eq('id', match.team1_id).single();
       if (t1) {
@@ -1053,7 +1071,6 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
       }
     }
 
-    // 🚀 FIXED: Dynamic Progression Engine Routing Winner to FINALS and Loser to 3RD_PLACE automatically
     if (match.match_type === 'ELIMINATION') {
       const bracketMovements = [];
 
@@ -1072,7 +1089,6 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
         bracketMovements.push({ position: nextWinnerPosition, field: nextWinnerField, teamId: resolvedWinnerId });
       }
 
-      // Consolation Bracket Layer: Trap Semi-Final losers and route them into the Bronze Medal Node
       if (match.bracket_position === 'SF1' || match.bracket_position === 'SF2') {
         const loserId = score1 > score2 ? match.team2_id : match.team1_id;
         const resolvedLoserId = typeof loserId === 'object' && loserId !== null ? (loserId as any).id : loserId;
@@ -1083,7 +1099,6 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
         }
       }
 
-      // Execute and sync all calculated placement transitions across live channels
       for (const move of bracketMovements) {
         const { data: existingNext } = await supabase
           .from('matches')
@@ -1205,7 +1220,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
   }
 
   try {
-    // 1. Clear out any existing unplayed playoff brackets to avoid duplicate fixture conflicts
     await supabase
       .from('matches')
       .delete()
@@ -1213,16 +1227,12 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
       .eq('category_id', categoryId)
       .eq('match_type', 'ELIMINATION');
 
-    // 2. Determine layout depth by checking for Quarter-Final seeds in the request
     const isQuarterFinalLayout = !!(
       customSeeds && 
       (customSeeds.QF1_T1_id || customSeeds.QF2_T1_id || customSeeds.QF3_T1_id || customSeeds.QF4_T1_id)
     );
 
     if (seedingMethod === 'MANUAL' && isQuarterFinalLayout) {
-      /** =======================================================
-       * 🌐 8-TEAM QUARTER-FINAL SYSTEM ENGINE WITH BYE ADVANCEMENT
-       * ======================================================= */
       const qfSlots = [
         { key: 'QF1', t1: customSeeds.QF1_T1_id, t2: customSeeds.QF1_T2_id, nextSf: 'SF1', slotNum: 1 },
         { key: 'QF2', t1: customSeeds.QF2_T1_id, t2: customSeeds.QF2_T2_id, nextSf: 'SF1', slotNum: 2 },
@@ -1230,7 +1240,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         { key: 'QF4', t1: customSeeds.QF4_T1_id, t2: customSeeds.QF4_T2_id, nextSf: 'SF2', slotNum: 2 },
       ];
 
-      // Track winners of each Quarter-Final to build the Semi-Final round
       const promotedSfWinners: Record<string, string | null> = {
         SF1_T1: null, SF1_T2: null, SF2_T1: null, SF2_T2: null
       };
@@ -1249,7 +1258,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         let t2Score = 0;
         let endedAt: string | null = null;
 
-        // Auto-advance logic if a BYE is present in the matchup
         if (isT1Bye && !isT2Bye) {
           status = 'FINISHED';
           t2Score = 11;
@@ -1276,7 +1284,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         });
       }
 
-      // Add the child Semi-Final placeholders, automatically populating any advanced BYE winners
       matchesToInsert.push({
         tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF1',
         team1_id: promotedSfWinners['SF1_T1'], team2_id: promotedSfWinners['SF1_T2'], status: 'PENDING', team1_score: 0, team2_score: 0
@@ -1287,7 +1294,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         team1_id: promotedSfWinners['SF2_T1'], team2_id: promotedSfWinners['SF2_T2'], status: 'PENDING', team1_score: 0, team2_score: 0
       });
 
-      // 🚀 SEEDING REFACTOR: Instantiate Championship Finals and 3rd Place match containers as core wireframe parameters
       matchesToInsert.push({
         tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'FINALS',
         team1_id: null, team2_id: null, status: 'PENDING', team1_score: 0, team2_score: 0
@@ -1298,14 +1304,10 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         team1_id: null, team2_id: null, status: 'PENDING', team1_score: 0, team2_score: 0
       });
 
-      // Insert the complete bracket structure into the database
       const { error: insertError } = await supabase.from('matches').insert(matchesToInsert);
       if (insertError) throw insertError;
 
     } else {
-      /** =======================================================
-       * 👥 4-TEAM SEMI-FINAL SYSTEM ENGINE (FALLBACK / AUTOMATIC)
-       * ======================================================= */
       let t1_SF1: string | null = null;
       let t2_SF1: string | null = null;
       let t1_SF2: string | null = null;
@@ -1338,7 +1340,6 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         return res.status(400).json({ error: "Seeding Aborted: All 4 core Semi-Final positions must be assigned." });
       }
 
-      // 🚀 SEEDING REFACTOR: Instantiate complete 4-team elimination structure containing Finals and 3rd Place matches cleanly
       const { error: sfInsertError } = await supabase.from('matches').insert([
         { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF1', status: 'PENDING', team1_id: t1_SF1, team2_id: t2_SF1, team1_score: 0, team2_score: 0 },
         { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF2', status: 'PENDING', team1_id: t1_SF2, team2_id: t2_SF2, team1_score: 0, team2_score: 0 },
@@ -1354,7 +1355,7 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
 
   } catch (err: any) {
     console.error("❌ Critical Playoff Generation Architecture Fault:", err);
-    return res.status(500).json({ error: "Internal elimination mapping failure.", details: err?.message || err });
+    return res.status(500).json({ error: "Internal elimination elimination failure.", details: err?.message || err });
   }
 });
 

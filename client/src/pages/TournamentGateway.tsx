@@ -36,9 +36,9 @@ interface TeamParticipant {
   team_name: string;
   player1_name: string;
   player2_name?: string | null;
-  contact_no: string;
-  address: string;
-  email: string;
+  contact_no?: string;
+  address?: string;
+  email?: string;
   registration_status: 'PENDING' | 'CONFIRMED' | 'REJECTED';
   payment_proof_url?: string | null;
 }
@@ -145,7 +145,7 @@ export function TournamentGateway() {
   const stats = gatewayData.stats;
   const isAdmin = gatewayData.isAdmin;
 
-  // 🚀 FIXED RESOLUTION: Wrap in useMemo to solve dependency loop triggers cleanly
+  // Wrap in useMemo to solve dependency loop triggers cleanly
   const categories = useMemo(() => {
     return (gatewayData.categories || []) as Category[];
   }, [gatewayData.categories]);
@@ -169,7 +169,7 @@ export function TournamentGateway() {
     return selectedPubCatObj?.category_type === 'Singles';
   }, [selectedPubCatObj]);
 
-  // Lazily fetch and load teams roster filtered dynamically by category
+  // Routes data gathering requests to the un-gated public endpoint route
   const handleToggleTeamsDropdown = async (categoryId: string) => {
     const isCurrentlyExpanded = !!expandedCategoryTeams[categoryId];
     setExpandedCategoryTeams(prev => ({ ...prev, [categoryId]: !isCurrentlyExpanded }));
@@ -178,9 +178,8 @@ export function TournamentGateway() {
 
     setLoadingTeams(prev => ({ ...prev, [categoryId]: true }));
     try {
-      const res = await axios.get(`${SOCKET_URL}/api/admin/tournaments/${tournamentId}/teams`, { withCredentials: true });
-      const allTournamentTeams: TeamParticipant[] = res.data || [];
-      const localizedDivisionTeams = allTournamentTeams.filter((team: TeamParticipant) => team.category_id === categoryId);
+      const res = await axios.get(`${SOCKET_URL}/api/categories/${categoryId}/public-roster`);
+      const localizedDivisionTeams: TeamParticipant[] = res.data || [];
       
       setCategoryTeamsData(prev => ({ ...prev, [categoryId]: localizedDivisionTeams }));
     } catch (err) {
@@ -360,7 +359,6 @@ export function TournamentGateway() {
   }
 
   return (
-    // 🚀 FIXED: Standardized to duration-200 to clear duplicate transition length warnings
     <div className="animate-in fade-in w-full flex flex-col min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
       
       {/* HERO BANNER BLOCK */}
@@ -497,7 +495,6 @@ export function TournamentGateway() {
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {/* 🚀 FIXED: Replaced unsafe dynamic casts with reliable explicit comparisons */}
                       {isAdmin && isAdminMode && (
                         <>
                           <button
@@ -560,13 +557,12 @@ export function TournamentGateway() {
                   </div>
                 </div>
 
-                {/* 🚀 FIXED: Simplified background alpha metrics into canonical Tailwind classes */}
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 text-center text-[11px] font-mono">
-                  <div className="bg-amber-500/4 border border-amber-500/20 rounded-lg p-2 dark:bg-amber-500/5 dark:border-amber-500/10">
+                  <div className="bg-amber-500/4 border border-amber-500/20 rounded-lg p-2 dark:bg-amber-500/5 dark:bg-amber-500/10">
                     <div className="text-amber-600 dark:text-amber-400 font-bold">🥇 Champion</div>
                     <div className="text-slate-800 dark:text-slate-200 font-black mt-0.5">₱{cat.prize_first || '0.00'}</div>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 dark:bg-slate-300/5 dark:border-slate-300/10">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 dark:bg-slate-300/5 dark:bg-slate-300/10">
                     <div className="text-slate-600 dark:text-slate-300 font-bold">🥈 2nd Place</div>
                     <div className="text-slate-800 dark:text-slate-200 font-black mt-0.5">₱{cat.prize_second || '0.00'}</div>
                   </div>
@@ -602,7 +598,6 @@ export function TournamentGateway() {
                           No players registered for this division yet.
                         </div>
                       ) : (
-                        // 🚀 FIXED: Stripped explicit any bindings from iteration rows
                         categoryTeamsData[cat.category_id].map((team: TeamParticipant, idx: number) => {
                           const isConfirmed = team.registration_status === 'CONFIRMED';
                           return (
@@ -637,10 +632,9 @@ export function TournamentGateway() {
         </div>
       </section>
 
-      {/* 🚀 CTA MODULE ANCHOR BOX */}
+      {/* CTA MODULE ANCHOR BOX */}
       {!isAdmin && tournament?.status === 'UPCOMING' && categories.length > 0 && (
         <section className="max-w-6xl mx-auto px-4 pb-16 w-full text-left animate-in fade-in duration-200">
-          {/* 🚀 FIXED: Converted fallback classes to canonical linear prefix mappings */}
           <div className="relative overflow-hidden bg-linear-to-r from-purple-50 via-slate-50 to-white border border-slate-200 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/50 dark:border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xs dark:shadow-xl transition-all duration-200">
             <div className="space-y-2 max-w-xl">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono text-[10px] font-black tracking-wider uppercase bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:border-purple-500/20 dark:text-purple-400">
@@ -826,8 +820,9 @@ export function TournamentGateway() {
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-mono font-bold uppercase text-slate-400 dark:text-slate-500">Contact Phone Number *</label>
                 <input 
-                  type="text" required value={pubContactNo} onChange={(e) => setPubContactNo(e.target.value)} placeholder="e.g., 09123456789"
+                  type="text" required value={pubContactNo} placeholder="e.g., 09123456789"
                   className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-hidden focus:border-purple-500 font-mono"
+                  onChange={(e) => setPubContactNo(e.target.value)}
                 />
               </div>
 
@@ -985,7 +980,6 @@ export function TournamentGateway() {
       {/* FULL MASTER EDIT DIVISION MODAL VIEW WINDOW */}
       {showEditModal && editingCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/77 backdrop-blur-xs animate-in fade-in duration-200">
-          {/* 🚀 FIXED: Standardized duration tokens across modal entries */}
           <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-w-lg w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-200 text-left shadow-2xl">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
@@ -1083,7 +1077,7 @@ export function TournamentGateway() {
       {/* ⚠️ DESTRUCTIVE ACTION WARNING MODAL ALERT OVERLAY */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-w-md w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-150 text-center shadow-2xl transition-colors duration-200">
+          <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-w-md w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-200 text-center shadow-2xl transition-colors duration-200">
             
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-400">
               <AlertTriangle className="h-6 w-6" />
