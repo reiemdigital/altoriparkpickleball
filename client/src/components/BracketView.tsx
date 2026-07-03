@@ -97,7 +97,6 @@ const RenderNode = ({ match, title }: RenderNodeProps) => {
  * ======================================================= */
 export const BracketView = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
-  // 🚀 FIXED TYPE OVERLAP: Type asserted as Match[] globally inside extraction scope
   const matches = useTournamentStore((state) => state.matches) as Match[];
   const standings = useTournamentStore((state) => state.standings) as TeamStanding[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
@@ -109,7 +108,6 @@ export const BracketView = () => {
   const [finalizeLoading, setFinalizeLoading] = useState<boolean>(false);
   const [activeOverSlot, setActiveOverSlot] = useState<string | null>(null);
   
-  // Converted rigid key structure into a flexible string map to allow Quarter-Final overlays
   const [bracketDraft, setBracketDraft] = useState<Record<string, PlayoffTeamDraft | null>>({});
 
   const databaseCategories = useMemo(() => {
@@ -141,7 +139,6 @@ export const BracketView = () => {
     return matches.filter((m) => m.match_type === 'ELIMINATION' && m.category_id === selectedCategoryId);
   }, [matches, selectedCategoryId]);
 
-  // Extract bracket positioning blocks dynamically
   const qf1 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'QF1'), [playoffMatches]);
   const qf2 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'QF2'), [playoffMatches]);
   const qf3 = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'QF3'), [playoffMatches]);
@@ -151,13 +148,12 @@ export const BracketView = () => {
   const finals = useMemo(() => playoffMatches.find((m) => m.bracket_position === 'FINALS'), [playoffMatches]);
   const thirdPlace = useMemo(() => playoffMatches.find((m) => m.bracket_position === '3RD_PLACE'), [playoffMatches]);
 
-  // Compute if active canvas has quarter final records saved in state history arrays
   const hasActiveQuarterFinals = useMemo(() => {
     return !!(qf1 || qf2 || qf3 || qf4);
   }, [qf1, qf2, qf3, qf4]);
 
   // =========================================================================
-  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH BYE SYSTEM DISPATCH CORES
+  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH FIXED TIE-BREAKER LOGIC
   // =========================================================================
   const { calculatedSeeds, targetBracketSize } = useMemo(() => {
     if (!selectedCategoryId || standings.length === 0) return { calculatedSeeds: [], targetBracketSize: 4 };
@@ -178,18 +174,31 @@ export const BracketView = () => {
     });
 
     const seeds: PlayoffTeamDraft[] = [];
-    Object.keys(pools).forEach((poolLabel) => {
+    
+    // Sort keys alphabetically to guarantee deterministic layout groupings
+    Object.keys(pools).sort().forEach((poolLabel) => {
       const sortedPool = [...pools[poolLabel]].sort((a, b) => {
         if (b.wins !== a.wins) return b.wins - a.wins;
-        return (b.points_for - b.points_against) - (b.points_for - b.points_against);
+        // 🚀 FIXED: Fixed tie-breaker derivation loop clashing formulas
+        const diffA = a.points_for - a.points_against;
+        const diffB = b.points_for - b.points_against;
+        return diffB - diffA;
       });
 
       if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
       if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
     });
 
-    const size = seeds.length > 4 ? 8 : 4;
-    return { calculatedSeeds: seeds, targetBracketSize: size };
+    // 🚀 UX IMPROVEMENT: Sort finalists list by Rank first, then alphabetically by Group ID
+    const displaySortedSeeds = [...seeds].sort((a, b) => {
+      if ((a.poolRank || 0) !== (b.poolRank || 0)) {
+        return (a.poolRank || 0) - (b.poolRank || 0);
+      }
+      return (a.group_id || '').localeCompare(b.group_id || '');
+    });
+
+    const size = displaySortedSeeds.length > 4 ? 8 : 4;
+    return { calculatedSeeds: displaySortedSeeds, targetBracketSize: size };
   }, [standings, selectedCategoryId]);
 
   const eligiblePlayoffTeams = useMemo(() => {
@@ -221,7 +230,6 @@ export const BracketView = () => {
     return filteredPool;
   }, [calculatedSeeds, bracketDraft, targetBracketSize]);
 
-  // Dynamic iteration maps used to loop custom node drops based on adaptive tier configurations
   const activeWireframeSlots = useMemo(() => {
     return targetBracketSize === 8 
       ? [
@@ -507,7 +515,6 @@ export const BracketView = () => {
                 </p>
               </div>
 
-              {/* DYNAMIC DRAWING WIREFRAME BOARD MATRIX */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {targetBracketSize === 8 ? (
                   <>
@@ -635,7 +642,6 @@ export const BracketView = () => {
         )}
       </div>
 
-      {/* MAIN SYSTEM BRACKET WRAPPER */}
       <div className="flex flex-col gap-10">
         
         {/* UPPER ROW: ACTIVE SINGLE-ELIMINATION TOURNAMENT FLOW LINES */}
@@ -666,13 +672,12 @@ export const BracketView = () => {
             <RenderNode match={sf2} title="Semifinal 2" />
           </div>
 
-          {/* TIER NODE CONNECT MATRIX FLOW LINES */}
           <div className="flex flex-col justify-around h-48 text-slate-300 dark:text-slate-700 font-mono text-xs">
             <div>➔</div>
             <div>➔</div>
           </div>
 
-          {/* TIER 3 COLUMN: CHAMPIONSHIP FINAL NODE (🚀 ISOLATED FOR SKEW PROTECTION) */}
+          {/* TIER 3 COLUMN: CHAMPIONSHIP FINAL NODE */}
           <div className="flex flex-col items-center justify-center">
             {finals ? (
               <div className="relative group">
@@ -692,7 +697,7 @@ export const BracketView = () => {
           
         </div>
 
-        {/* 🚀 LOWER ROW: 3RD PLACE CONSOLATION MATRICES (DECOUPLED CONSOLIDATION TRADING FLOORS) */}
+        {/* LOWER ROW: 3RD PLACE CONSOLATION PLAYOFF */}
         <div className="mt-4 pt-6 border-t border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center">
           <div className="text-center mb-4">
             <span className="text-[10px] font-mono text-amber-600 dark:text-amber-500 font-black tracking-widest uppercase flex items-center justify-center gap-1">
