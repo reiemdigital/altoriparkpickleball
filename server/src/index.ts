@@ -703,8 +703,13 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
   }
 });
 
+/** =======================================================
+ * FIXED: ROUTE PARAMETER DESTUCTURING NOMENCLATURE MATCH
+ * ======================================================= */
 app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
-  const { tournamentId } = req.params;
+  // Extract 'id' to perfectly match the ':id' parameter definition, then alias it to tournamentId
+  const { id: tournamentId } = req.params; 
+  
   const { 
     category_name, gender_division, category_type, entry_fee, max_slots, 
     prize_first, prize_second, prize_third 
@@ -719,7 +724,7 @@ app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: 
       .from('categories')
       .insert([
         {
-          tournament_id: tournamentId,
+          tournament_id: tournamentId, // Now accurately passes the target UUID string
           category_name: category_name.trim(),
           gender_division: gender_division || 'Mixed',
           category_type: category_type || 'Doubles', 
@@ -728,18 +733,18 @@ app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: 
           prize_first: parseFloat(prize_first) || 0.00,
           prize_second: parseFloat(prize_second) || 0.00,
           prize_third: parseFloat(prize_third) || 0.00
-        }
-      ])
-      .select()
-      .single();
+            }
+          ])
+          .select()
+          .single();
 
     if (error) throw error;
 
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
     return res.status(201).json(newCategory);
   } catch (err: any) {
-    console.error("Category creation error:", err);
-    return res.status(500).json({ error: "Failed to create division category node." });
+    console.error("❌ Category creation error:", err);
+    return res.status(500).json({ error: "Failed to create division category node cleanly inside database registry." });
   }
 });
 
