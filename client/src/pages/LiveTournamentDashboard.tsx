@@ -12,7 +12,7 @@ import { MatchHistory } from '../components/MatchHistory';
 import { BracketView } from '../components/BracketView';
 
 // Icons
-import { Trophy, GitFork, ShieldAlert, Medal, Award } from 'lucide-react';
+import { Trophy, GitFork, ShieldAlert, Medal, Award, Hourglass } from 'lucide-react';
 
 // Local Component Type Definitions
 type PublicTabType = 'leaderboards' | 'brackets' | 'podium';
@@ -26,7 +26,6 @@ export function LiveTournamentDashboard() {
   
   // Strict selector extraction tracking global slice updates atomically
   const matches = useTournamentStore((state) => state.matches);
-  const standings = useTournamentStore((state) => state.standings);
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   
   const setMatches = useTournamentStore((state) => state.setMatches);
@@ -83,7 +82,7 @@ export function LiveTournamentDashboard() {
   }, [tournamentId, fetchTournamentData, updateMatch]);
 
   /** =======================================================
-   * DYNAMIC PODIUM DATA EXTRACTION ENGINE (MEMOIZED)
+   * DYNAMIC PODIUM DATA EXTRACTION ENGINE (ELIMINATION ONLY)
    * ======================================================= */
   const podiumDataByDivision = useMemo(() => {
     const categoriesList = gatewayData.categories || [];
@@ -91,61 +90,50 @@ export function LiveTournamentDashboard() {
     return categoriesList.map((cat) => {
       const catId = cat.category_id;
       
-      // Filter category specific matches and standings
+      // Filter matches exclusively linked to this division context
       const catMatches = matches.filter(m => m.category_id === catId);
-      const catStandings = standings.filter(s => s.category_id === catId);
 
       let championName = "";
       let secondPlaceName = "";
-      let thirdPlaceName = "";
-      let isOfficialFromBrackets = false;
+      // 🚀 FIXED: Initialize directly with fallback value to solve the no-useless-assignment rule
+      let thirdPlaceName = "TBD";
+      let isFinalsFinished = false;
 
-      // Extract details from elimination brackets if available
+      // Locate target gold medal and consolation match frameworks
       const finalsMatch = catMatches.find(m => m.match_type === 'ELIMINATION' && m.bracket_position === 'FINALS');
       const thirdPlaceMatch = catMatches.find(m => m.match_type === 'ELIMINATION' && m.bracket_position === '3RD_PLACE');
 
+      // EXCLUSIVE BOUNDARY RULE: Positions resolve only when the Grand Finals match concludes
       if (finalsMatch && finalsMatch.status === 'FINISHED') {
-        isOfficialFromBrackets = true;
+        isFinalsFinished = true;
         if (finalsMatch.team1_score > finalsMatch.team2_score) {
-          championName = finalsMatch.team1?.team_name || "Unassigned Champ";
-          secondPlaceName = finalsMatch.team2?.team_name || "Unassigned 2nd";
+          championName = finalsMatch.team1?.team_name || "Unassigned Champion";
+          secondPlaceName = finalsMatch.team2?.team_name || "Unassigned 2nd Place";
         } else {
-          championName = finalsMatch.team2?.team_name || "Unassigned Champ";
-          secondPlaceName = finalsMatch.team1?.team_name || "Unassigned 2nd";
+          championName = finalsMatch.team2?.team_name || "Unassigned Champion";
+          secondPlaceName = finalsMatch.team1?.team_name || "Unassigned 2nd Place";
         }
       }
 
       if (thirdPlaceMatch && thirdPlaceMatch.status === 'FINISHED') {
         if (thirdPlaceMatch.team1_score > thirdPlaceMatch.team2_score) {
-          thirdPlaceName = thirdPlaceMatch.team1?.team_name || "Unassigned 3rd";
+          thirdPlaceName = thirdPlaceMatch.team1?.team_name || "Unassigned 3rd Place";
         } else {
-          thirdPlaceName = thirdPlaceMatch.team2?.team_name || "Unassigned 3rd";
+          thirdPlaceName = thirdPlaceMatch.team2?.team_name || "Unassigned 3rd Place";
         }
-      }
-
-      // Standings fallback projection loop
-      if (!championName && catStandings.length > 0) {
-        championName = catStandings[0]?.team_name || "TBD";
-      }
-      if (!secondPlaceName && catStandings.length > 1) {
-        secondPlaceName = catStandings[1]?.team_name || "TBD";
-      }
-      if (!thirdPlaceName && catStandings.length > 2) {
-        thirdPlaceName = catStandings[2]?.team_name || "TBD";
-      }
+      } // 🚀 FIXED: Redundant else wrapper removed to optimize engine processing paths cleanly
 
       return {
         categoryId: catId,
         categoryName: cat.category_name,
         categoryFormat: cat.category_type || 'Doubles',
-        hasTeams: catStandings.length > 0,
-        isOfficial: isOfficialFromBrackets,
-        champion: championName || "To Be Decided",
-        second: secondPlaceName || "To Be Decided",
-        third: thirdPlaceName || "To Be Decided"
+        isOfficial: isFinalsFinished,
+        champion: championName,
+        second: secondPlaceName,
+        third: thirdPlaceName
       };
     });
-  }, [gatewayData.categories, matches, standings]);
+  }, [gatewayData.categories, matches]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 mt-6 animate-in fade-in duration-200 relative min-h-[calc(100vh-100px)] pb-24">
@@ -223,15 +211,22 @@ export function LiveTournamentDashboard() {
                     <span className={`text-[9px] font-mono font-bold tracking-widest px-2.5 py-1 rounded-full border uppercase ${
                       div.isOfficial 
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-500/10 dark:border-emerald-500/20' 
-                        : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/20'
+                        : 'bg-slate-100/50 border-slate-200 text-slate-400 dark:bg-slate-800/40 dark:border-slate-800'
                     }`}>
-                      {div.isOfficial ? '🏆 Official Results' : '🔥 Live Projections'}
+                      {div.isOfficial ? '🏆 Official Results' : '⏳ Awaiting Finals'}
                     </span>
                   </div>
 
-                  {!div.hasTeams ? (
-                    <div className="py-8 text-center font-mono text-xs text-slate-400 italic">
-                      Waiting for matches to start in this division.
+                  {/* Dynamic callback UI layout state while waiting for bracket results */}
+                  {!div.isOfficial ? (
+                    <div className="py-12 flex flex-col items-center justify-center text-center bg-slate-50/40 border border-dashed border-slate-200/80 rounded-2xl p-6 dark:bg-slate-950/20 dark:border-slate-800/60 transition-colors duration-200">
+                      <div className="h-10 w-10 rounded-full bg-purple-500/5 border border-purple-500/10 flex items-center justify-center mb-3">
+                        <Hourglass className="h-4 w-4 text-purple-500 dark:text-purple-400 animate-spin [animation-duration:3s]" />
+                      </div>
+                      <h4 className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Playoff Brackets Underway</h4>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mt-1 leading-relaxed">
+                        Official podium crowns will unlock here as soon as the division Grand Finals match concludes.
+                      </p>
                     </div>
                   ) : (
                     /* Staggered Responsive Podium Elements Grid Container */
