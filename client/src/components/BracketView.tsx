@@ -153,10 +153,12 @@ export const BracketView = () => {
   }, [qf1, qf2, qf3, qf4]);
 
   // =========================================================================
-  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH FIXED TIE-BREAKER LOGIC
+  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH SMART SINGLE-POOL BYPASS LOGIC
   // =========================================================================
-  const { calculatedSeeds, targetBracketSize } = useMemo(() => {
-    if (!selectedCategoryId || standings.length === 0) return { calculatedSeeds: [], targetBracketSize: 4 };
+  const { calculatedSeeds, targetBracketSize, isSingleGroupBypass } = useMemo(() => {
+    if (!selectedCategoryId || standings.length === 0) {
+      return { calculatedSeeds: [], targetBracketSize: 4, isSingleGroupBypass: false };
+    }
 
     const categoryTeams = standings.filter(
       (t) =>
@@ -173,23 +175,33 @@ export const BracketView = () => {
       pools[poolLabel].push(team);
     });
 
+    const poolKeys = Object.keys(pools);
+    const singlePoolDetected = poolKeys.length === 1;
+
     const seeds: PlayoffTeamDraft[] = [];
     
-    // Sort keys alphabetically to guarantee deterministic layout groupings
-    Object.keys(pools).sort().forEach((poolLabel) => {
+    poolKeys.sort().forEach((poolLabel) => {
       const sortedPool = [...pools[poolLabel]].sort((a, b) => {
         if (b.wins !== a.wins) return b.wins - a.wins;
-        // 🚀 FIXED: Fixed tie-breaker derivation loop clashing formulas
         const diffA = a.points_for - a.points_against;
         const diffB = b.points_for - b.points_against;
         return diffB - diffA;
       });
 
-      if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
-      if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
+      // 🚀 SMART LOGIC ENGINE: If only 1 group exists, grab top 4 teams to bypass Quarter-Finals
+      if (singlePoolDetected) {
+        if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
+        if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
+        if (sortedPool[2]) seeds.push({ ...sortedPool[2], poolRank: 3 });
+        if (sortedPool[3]) seeds.push({ ...sortedPool[3], poolRank: 4 });
+      } else {
+        // Standard Multi-Group rules: only take top 2 players/teams per group
+        if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
+        if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
+      }
     });
 
-    // 🚀 UX IMPROVEMENT: Sort finalists list by Rank first, then alphabetically by Group ID
+    // Sort finalists listing by Rank value followed by group labels
     const displaySortedSeeds = [...seeds].sort((a, b) => {
       if ((a.poolRank || 0) !== (b.poolRank || 0)) {
         return (a.poolRank || 0) - (b.poolRank || 0);
@@ -197,8 +209,9 @@ export const BracketView = () => {
       return (a.group_id || '').localeCompare(b.group_id || '');
     });
 
-    const size = displaySortedSeeds.length > 4 ? 8 : 4;
-    return { calculatedSeeds: displaySortedSeeds, targetBracketSize: size };
+    // If a single group bypass is triggered, size is locked to 4 (Semifinals layout)
+    const size = singlePoolDetected ? 4 : displaySortedSeeds.length > 4 ? 8 : 4;
+    return { calculatedSeeds: displaySortedSeeds, targetBracketSize: size, isSingleGroupBypass: singlePoolDetected };
   }, [standings, selectedCategoryId]);
 
   const eligiblePlayoffTeams = useMemo(() => {
@@ -453,9 +466,11 @@ export const BracketView = () => {
                   <Move className="h-3.5 w-3.5 text-purple-500" /> Finalists Allocation Board
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                  {targetBracketSize === 8 
-                    ? "Drag teams or BYE placeholders onto the 8-slot Quarter-Final layout wires."
-                    : "Drag your top team seeds directly into their target match nodes on the right."}
+                  {isSingleGroupBypass 
+                    ? "Single Group Mode Active: The top 4 ranked players/teams from group play qualify directly into the Semifinals wireframe targets."
+                    : targetBracketSize === 8 
+                      ? "Drag teams or BYE placeholders onto the 8-slot Quarter-Final layout wires."
+                      : "Drag your top team seeds directly into their target match nodes on the right."}
                 </p>
               </div>
 
@@ -480,7 +495,7 @@ export const BracketView = () => {
                       >
                         <div className="truncate max-w-[85%]">
                           <span className={`inline-block px-1.5 py-0.5 font-mono text-[9px] rounded font-bold uppercase mb-1 ${
-                            isBye ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                            isBye ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 dark:bg-slate-800 text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/30'
                           }`}>
                             {isBye ? 'Wildcard' : `${team.group_id} — Rank ${team.poolRank}`}
                           </span>
@@ -511,7 +526,9 @@ export const BracketView = () => {
                   {targetBracketSize === 8 ? "Quarter-Final Wireframe Array" : "Semifinal Wireframe Array"}
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Populate all slot parameters to formulate your customized brackets payload.
+                  {isSingleGroupBypass 
+                    ? "Quarter-Finals auto-bypassed. Configure the direct Semifinal matches below." 
+                    : "Populate all slot parameters to formulate your customized brackets payload."}
                 </p>
               </div>
 
@@ -543,13 +560,13 @@ export const BracketView = () => {
                   <>
                     <div className="space-y-3 bg-slate-50/50 p-4 border border-slate-200/60 rounded-2xl dark:bg-slate-950/20 dark:border-slate-800/60">
                       <span className="text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider block">🏆 Semifinal Match 1</span>
-                      {renderDropSlot('SF1_T1', 'Seed 1 (Top)')}
-                      {renderDropSlot('SF1_T2', 'Seed 4 (Bottom)')}
+                      {renderDropSlot('SF1_T1', isSingleGroupBypass ? 'Rank 1 (Top)' : 'Seed 1 (Top)')}
+                      {renderDropSlot('SF1_T2', isSingleGroupBypass ? 'Rank 4 (Bottom)' : 'Seed 4 (Bottom)')}
                     </div>
                     <div className="space-y-3 bg-slate-50/50 p-4 border border-slate-200/60 rounded-2xl dark:bg-slate-950/20 dark:border-slate-800/60">
                       <span className="text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider block">🏆 Semifinal Match 2</span>
-                      {renderDropSlot('SF2_T1', 'Seed 2 (Top)')}
-                      {renderDropSlot('SF2_T2', 'Seed 3 (Bottom)')}
+                      {renderDropSlot('SF2_T1', isSingleGroupBypass ? 'Rank 2 (Top)' : 'Seed 2 (Top)')}
+                      {renderDropSlot('SF2_T2', isSingleGroupBypass ? 'Rank 3 (Bottom)' : 'Seed 3 (Bottom)')}
                     </div>
                   </>
                 )}
