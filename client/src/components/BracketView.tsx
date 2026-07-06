@@ -153,11 +153,11 @@ export const BracketView = () => {
   }, [qf1, qf2, qf3, qf4]);
 
   // =========================================================================
-  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH SMART SINGLE-POOL BYPASS LOGIC
+  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH MULTI-POOL EXPANSION SEEDING
   // =========================================================================
-  const { calculatedSeeds, targetBracketSize, isSingleGroupBypass } = useMemo(() => {
+  const { calculatedSeeds, targetBracketSize, isSingleGroupBypass, isDualGroupExpansion } = useMemo(() => {
     if (!selectedCategoryId || standings.length === 0) {
-      return { calculatedSeeds: [], targetBracketSize: 4, isSingleGroupBypass: false };
+      return { calculatedSeeds: [], targetBracketSize: 4, isSingleGroupBypass: false, isDualGroupExpansion: false };
     }
 
     const categoryTeams = standings.filter(
@@ -177,6 +177,7 @@ export const BracketView = () => {
 
     const poolKeys = Object.keys(pools);
     const singlePoolDetected = poolKeys.length === 1;
+    const dualPoolDetected = poolKeys.length === 2;
 
     const seeds: PlayoffTeamDraft[] = [];
     
@@ -188,20 +189,23 @@ export const BracketView = () => {
         return diffB - diffA;
       });
 
-      // 🚀 SMART LOGIC ENGINE: If only 1 group exists, grab top 4 teams to bypass Quarter-Finals
+      // DYNAMIC SLICING: Slices group extraction targets depending on team allocation densities
       if (singlePoolDetected) {
         if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
         if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
         if (sortedPool[2]) seeds.push({ ...sortedPool[2], poolRank: 3 });
         if (sortedPool[3]) seeds.push({ ...sortedPool[3], poolRank: 4 });
+      } else if (dualPoolDetected) {
+        if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
+        if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
+        if (sortedPool[2]) seeds.push({ ...sortedPool[2], poolRank: 3 });
       } else {
-        // Standard Multi-Group rules: only take top 2 players/teams per group
         if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
         if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
       }
     });
 
-    // Sort finalists listing by Rank value followed by group labels
+    // Sort finalists list by Rank value followed by group alphabetical tags
     const displaySortedSeeds = [...seeds].sort((a, b) => {
       if ((a.poolRank || 0) !== (b.poolRank || 0)) {
         return (a.poolRank || 0) - (b.poolRank || 0);
@@ -209,9 +213,21 @@ export const BracketView = () => {
       return (a.group_id || '').localeCompare(b.group_id || '');
     });
 
-    // If a single group bypass is triggered, size is locked to 4 (Semifinals layout)
-    const size = singlePoolDetected ? 4 : displaySortedSeeds.length > 4 ? 8 : 4;
-    return { calculatedSeeds: displaySortedSeeds, targetBracketSize: size, isSingleGroupBypass: singlePoolDetected };
+    // 🚀 FIXED: Transformed block into a clean, expressions-based immutable assignment to fix 'no-useless-assignment'
+    const size = singlePoolDetected 
+      ? 4 
+      : dualPoolDetected 
+        ? 8 
+        : displaySortedSeeds.length > 4 
+          ? 8 
+          : 4;
+
+    return { 
+      calculatedSeeds: displaySortedSeeds, 
+      targetBracketSize: size, 
+      isSingleGroupBypass: singlePoolDetected,
+      isDualGroupExpansion: dualPoolDetected
+    };
   }, [standings, selectedCategoryId]);
 
   const eligiblePlayoffTeams = useMemo(() => {
@@ -468,9 +484,9 @@ export const BracketView = () => {
                 <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
                   {isSingleGroupBypass 
                     ? "Single Group Mode Active: The top 4 ranked players/teams from group play qualify directly into the Semifinals wireframe targets."
-                    : targetBracketSize === 8 
-                      ? "Drag teams or BYE placeholders onto the 8-slot Quarter-Final layout wires."
-                      : "Drag your top team seeds directly into their target match nodes on the right."}
+                    : isDualGroupExpansion
+                      ? "Dual Group Expansion Active: The top 3 ranked players/teams from both groups qualify. Fill the 8-slot wireframe wires below using standard seeds or Wildcard BYE counters."
+                      : "Drag teams or BYE placeholders onto the 8-slot Quarter-Final layout wires."}
                 </p>
               </div>
 
