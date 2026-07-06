@@ -50,25 +50,25 @@ export function TournamentGateway() {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
   
-  // 🚀 REFACTORED: Strict atomic state selectors ensuring reactive synchronization re-renders
+  // Strict atomic state selectors ensuring reactive synchronization re-renders
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const setGatewayData = useTournamentStore((state) => state.setGatewayData);
 
   const [loading, setLoading] = useState(true);
   
-  // 🛠️ ADMIN & MODAL MATRIX STATE HANDLERS
+  // ADMIN & MODAL MATRIX STATE HANDLERS
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false); 
   const [showRegisterModal, setShowRegisterModal] = useState(false); 
   
-  // 🛡️ REFACTOR SYSTEM STATES: Elite state trackers replacing browser popups
+  // REFACTOR SYSTEM STATES: Elite state trackers replacing browser popups
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // 📝 ADMINISTRATIVE NEW DIVISION FORM HOOK VARIABLES
+  // ADMINISTRATIVE NEW DIVISION FORM HOOK VARIABLES
   const [newCatName, setNewCatName] = useState('');
   const [newGenderDiv, setNewGenderDiv] = useState<'Mixed' | 'Male' | 'Female'>('Mixed');
   const [newCategoryType, setNewCategoryType] = useState<'Singles' | 'Doubles'>('Doubles');
@@ -79,7 +79,7 @@ export function TournamentGateway() {
   const [newPrize3rd, setNewPrize3rd] = useState('0');
   const [formSubmitting, setFormSubmitting] = useState(false);
 
-  // 📝 ADMINISTRATIVE DIVISION EDIT STATE HOOKS
+  // ADMINISTRATIVE DIVISION EDIT STATE HOOKS
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editCatName, setEditCatName] = useState('');
   const [editGenderDiv, setEditGenderDiv] = useState<'Mixed' | 'Male' | 'Female'>('Mixed');
@@ -91,12 +91,12 @@ export function TournamentGateway() {
   const [editPrize3rd, setEditPrize3rd] = useState('0');
   const [editFormSubmitting, setEditFormSubmitting] = useState(false);
 
-  // 👥 PARTICIPANT ROSTER DROPDOWN ACCORDION DATA MAPS
+  // PARTICIPANT ROSTER DROPDOWN ACCORDION DATA MAPS
   const [expandedCategoryTeams, setExpandedCategoryTeams] = useState<Record<string, boolean>>({});
   const [loadingTeams, setLoadingTeams] = useState<Record<string, boolean>>({});
   const [categoryTeamsData, setCategoryTeamsData] = useState<Record<string, TeamParticipant[]>>({});
 
-  // 📥 PUBLIC REGISTER SYSTEM HOOK VARIABLES
+  // PUBLIC REGISTER SYSTEM HOOK VARIABLES
   const [pubCategory, setPubCategory] = useState('');
   const [pubTeamName, setPubTeamName] = useState('');
   const [pubPlayer1Name, setPubPlayer1Name] = useState('');
@@ -106,6 +106,11 @@ export function TournamentGateway() {
   const [pubEmail, setPubEmail] = useState('');
   const [pubFile, setPubFile] = useState<File | null>(null);
   const [pubFormSubmitting, setPubFormSubmitting] = useState(false);
+
+  // Wrap in useMemo to solve dependency loop triggers cleanly
+  const categories = useMemo(() => {
+    return (gatewayData.categories || []) as Category[];
+  }, [gatewayData.categories]);
 
   // Unified data re-fetch action to clear race conditions
   const fetchGatewayInfo = React.useCallback(async () => {
@@ -120,6 +125,36 @@ export function TournamentGateway() {
     }
   }, [tournamentId, setGatewayData]);
 
+  // Eager background fetch pipeline handler for all rosters
+  const fetchAllCategoryRosters = React.useCallback(async (targetCategories: Category[]) => {
+    if (!targetCategories || targetCategories.length === 0) return;
+    
+    // Initialize loading indicators for all categories
+    const initialLoadingState: Record<string, boolean> = {};
+    targetCategories.forEach(cat => {
+      initialLoadingState[cat.category_id] = true;
+    });
+    setLoadingTeams(prev => ({ ...prev, ...initialLoadingState }));
+
+    try {
+      await Promise.all(
+        targetCategories.map(async (cat) => {
+          try {
+            const res = await axios.get(`${SOCKET_URL}/api/categories/${cat.category_id}/public-roster`);
+            setCategoryTeamsData(prev => ({ ...prev, [cat.category_id]: res.data || [] }));
+            setExpandedCategoryTeams(prev => ({ ...prev, [cat.category_id]: true }));
+          } catch (err) {
+            console.error(`Failed to extract roster for category ${cat.category_id}:`, err);
+          } finally {
+            setLoadingTeams(prev => ({ ...prev, [cat.category_id]: false }));
+          }
+        })
+      );
+    } catch (globalErr) {
+      console.error("Global compilation lookup error across roster branches:", globalErr);
+    }
+  }, []);
+
   useEffect(() => {
     if (!tournamentId) return;
     
@@ -128,23 +163,9 @@ export function TournamentGateway() {
     // Join isolated socket stream channel
     socket.emit('join-tournament-room', tournamentId);
 
-    // 📡 TELEMETRY ENGINE: Listen for live participant additions or parameter updates
+    // TELEMETRY ENGINE: Listen for live participant additions or parameter updates
     socket.on('registration-updated', () => {
       fetchGatewayInfo();
-      
-      // REACTIVE ACCORDION RE-REFRESH: Automatically updates open lists
-      setExpandedCategoryTeams(prevExpanded => {
-        Object.entries(prevExpanded).forEach(([catId, isExpanded]) => {
-          if (isExpanded) {
-            axios.get(`${SOCKET_URL}/api/categories/${catId}/public-roster`)
-              .then(res => {
-                setCategoryTeamsData(prevData => ({ ...prevData, [catId]: res.data || [] }));
-              })
-              .catch(err => console.error("Roster background pipeline synchronization failure:", err));
-          }
-        });
-        return prevExpanded;
-      });
     });
     
     socket.on('tournament-metadata-updated', () => {
@@ -158,15 +179,33 @@ export function TournamentGateway() {
     };
   }, [tournamentId, fetchGatewayInfo]);
 
+  // 🚀 FIXED: Wrapped within a task scheduler to resolve react-hooks/set-state-in-effect cascading renders
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      const deferRosters = setTimeout(() => {
+        fetchAllCategoryRosters(categories);
+      }, 0);
+      return () => clearTimeout(deferRosters);
+    }
+  }, [categories, fetchAllCategoryRosters]);
+
+  // Re-fetch rosters automatically if socket triggers dynamic structural refreshes
+  useEffect(() => {
+    const handleLiveRosterSync = () => {
+      if (categories && categories.length > 0) {
+        fetchAllCategoryRosters(categories);
+      }
+    };
+    socket.on('registration-updated', handleLiveRosterSync);
+    return () => {
+      socket.off('registration-updated', handleLiveRosterSync);
+    };
+  }, [categories, fetchAllCategoryRosters]);
+
   // Type casting data layers directly to eliminate structural friction
   const tournament = gatewayData.tournament;
   const stats = gatewayData.stats;
   const isAdmin = gatewayData.isAdmin;
-
-  // Wrap in useMemo to solve dependency loop triggers cleanly
-  const categories = useMemo(() => {
-    return (gatewayData.categories || []) as Category[];
-  }, [gatewayData.categories]);
 
   // Avoid calling setState synchronously within an effect by using macro-task scheduling
   useEffect(() => {
@@ -187,28 +226,18 @@ export function TournamentGateway() {
     return selectedPubCatObj?.category_type === 'Singles';
   }, [selectedPubCatObj]);
 
-  // Routes data gathering requests to the un-gated public endpoint route
-  const handleToggleTeamsDropdown = async (categoryId: string) => {
-    const isCurrentlyExpanded = !!expandedCategoryTeams[categoryId];
-    setExpandedCategoryTeams(prev => ({ ...prev, [categoryId]: !isCurrentlyExpanded }));
-
-    if (categoryTeamsData[categoryId] || isCurrentlyExpanded) return;
-
-    setLoadingTeams(prev => ({ ...prev, [categoryId]: true }));
-    try {
-      const res = await axios.get(`${SOCKET_URL}/api/categories/${categoryId}/public-roster`);
-      setCategoryTeamsData(prev => ({ ...prev, [categoryId]: res.data || [] }));
-    } catch (err) {
-      console.error("Failed to extract active division rosters asynchronously:", err);
-    } finally {
-      setLoadingTeams(prev => ({ ...prev, [categoryId]: false }));
-    }
+  // Simple toggle feature wrapper if manual interaction is desired post-initial load
+  const handleToggleTeamsDropdown = (categoryId: string) => {
+    setExpandedCategoryTeams(prev => ({ ...prev, [categoryId]: !prev[categoryId] }));
   };
 
   // Submit request handler for creating new categories (Admin)
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
+
+    // 🚀 FIXED: Substituted ternary side-effect expression with clean early return block to fix @typescript-eslint/no-unused-expressions
+    if (formSubmitting) return;
     setFormSubmitting(true);
 
     try {
@@ -476,7 +505,7 @@ export function TournamentGateway() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {categories.map((cat: Category) => {
-            // 🚀 REFACTORED: Compute exact confirmed count from state cache or rely on backend gateway properties
+            // Compute accurate dynamic fill percentage directly from eagerly fetched rosters
             const confirmedRosterCount = categoryTeamsData[cat.category_id]
               ? categoryTeamsData[cat.category_id].filter(t => t.registration_status === 'CONFIRMED').length
               : (cat.registered_teams_count || 0);
@@ -584,6 +613,7 @@ export function TournamentGateway() {
                   </div>
                 </div>
 
+                {/* ROSTER CONTAINER: Displays automatically with intuitive accordion header actions */}
                 <div className="pt-1 flex flex-col gap-2">
                   <button
                     type="button"
@@ -592,7 +622,7 @@ export function TournamentGateway() {
                   >
                     <span className="flex items-center gap-1.5">
                       <Layers className="h-3.5 w-3.5 text-purple-500" />
-                      {expandedCategoryTeams[cat.category_id] ? "Hide Team Rosters" : "View Registered Rosters"}
+                      {expandedCategoryTeams[cat.category_id] ? "Minimize Registered Roster" : "Expand Registered Roster"}
                     </span>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
                       ({filledSlots} Confirmed)
@@ -600,8 +630,8 @@ export function TournamentGateway() {
                   </button>
 
                   {expandedCategoryTeams[cat.category_id] && (
-                    <div className="animate-in fade-in slide-in-from-top-2 duration-200 bg-slate-50/50 dark:bg-black/20 border border-slate-100 dark:border-slate-900 rounded-xl p-2.5 max-h-52 overflow-y-auto scrollbar-thin space-y-1.5">
-                      {loadingTeams[cat.category_id] ? (
+                    <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 bg-slate-50/50 dark:bg-black/20 border border-slate-100 dark:border-slate-900 rounded-xl p-2.5 max-h-52 overflow-y-auto scrollbar-thin space-y-1.5">
+                      {loadingTeams[cat.category_id] && (!categoryTeamsData[cat.category_id]) ? (
                         <div className="text-center py-4 font-mono text-[10px] text-slate-400 flex items-center justify-center gap-2">
                           <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600" /> Compiling division entry rows...
                         </div>
@@ -765,7 +795,7 @@ export function TournamentGateway() {
 
       {/* PUBLIC REGISTRATION MODAL OVERLAY */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/77 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-w-2xl w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-200 text-left shadow-2xl max-h-[90vh] overflow-y-auto relative scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
             
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 sticky top-0 bg-white dark:bg-slate-900 z-10 pt-1 transition-colors duration-200">
@@ -1086,7 +1116,7 @@ export function TournamentGateway() {
         </div>
       )}
 
-      {/* ⚠️ DESTRUCTIVE ACTION WARNING MODAL ALERT OVERLAY */}
+      {/* DESTRUCTIVE ACTION WARNING MODAL ALERT OVERLAY */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-w-md w-full rounded-2xl p-6 space-y-4 animate-in scale-in duration-200 text-center shadow-2xl transition-colors duration-200">
