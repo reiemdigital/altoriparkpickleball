@@ -1199,7 +1199,7 @@ app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Re
 app.get('/api/tournaments/:tournamentId/matches/history', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
-    const { data: completedMatches, error } = await supabase
+    const { data: completedMatches, error = null } = await supabase
       .from('matches')
       .select('*, team1:team1_id(team_name, player1_name, player2_name, group_id), team2:team2_id(team_name, player1_name, player2_name, group_id), category:category_id(name:category_name)')
       .eq('tournament_id', tournamentId)
@@ -1415,15 +1415,28 @@ app.get('/api/tournaments/:tournamentId/categories', async (req: Request, res: R
   }
 });
 
+/** =======================================================
+ * 🛠️ UPDATED: ENHANCED SINGLE CATEGORY PARAMETER MODIFIER
+ * ======================================================= */
 app.put('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { maxSlots } = req.body;
+  const { maxSlots, prize_first, prize_second, prize_third, entry_fee } = req.body;
+  
+  const individualUpdatePayload: Record<string, any> = {};
+
+  if (maxSlots !== undefined) individualUpdatePayload.max_slots = parseInt(maxSlots, 10);
+  if (prize_first !== undefined) individualUpdatePayload.prize_first = parseFloat(prize_first) || 0.00;
+  if (prize_second !== undefined) individualUpdatePayload.prize_second = parseFloat(prize_second) || 0.00;
+  if (prize_third !== undefined) individualUpdatePayload.prize_third = parseFloat(prize_third) || 0.00;
+  if (entry_fee !== undefined) individualUpdatePayload.entry_fee = parseFloat(entry_fee) || 0.00;
+
   try {
     const { data: updated, error } = await supabase
       .from('categories')
-      .update({ max_slots: parseInt(maxSlots, 10) })
+      .update(individualUpdatePayload)
       .eq('category_id', id)
-      .select().single();
+      .select()
+      .single();
 
     if (error) throw error;
     io.to(`tournament:${updated.tournament_id}`).emit('registration-updated'); 
@@ -1437,7 +1450,21 @@ app.put('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, res:
  * 🛠️ REFACTORED: POLYMORPHIC SETTINGS ROUTING LABELS
  * ======================================================= */
 app.put('/api/config/category-settings', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
-  const { tournamentId, categoryId, maxSlots, groupCount, qualifiersCount } = req.body;
+  const { 
+    tournamentId, 
+    categoryId, 
+    maxSlots, 
+    groupCount, 
+    qualifiersCount,
+    prize_first, 
+    prize_second, 
+    prize_third,
+    prizeFirst,
+    prizeSecond,
+    prizeThird,
+    entry_fee,
+    entryFee
+  } = req.body;
   
   if (!categoryId) {
     return res.status(400).json({ error: "Validation failure: Target division category ID is required." });
@@ -1458,6 +1485,27 @@ app.put('/api/config/category-settings', requireAuth(['ADMIN']), async (req: Req
     if (!isNaN(parsedQualifiersCount) && parsedQualifiersCount >= 1) {
       dynamicUpdatePayload.qualifiers_count = parsedQualifiersCount;
     }
+  }
+
+  // Dual contract validation hooks mapping both camelCase and snake_case request objects seamlessly
+  const resolvedFirstPrize = prize_first !== undefined ? prize_first : prizeFirst;
+  if (resolvedFirstPrize !== undefined) {
+    dynamicUpdatePayload.prize_first = parseFloat(resolvedFirstPrize) || 0.00;
+  }
+
+  const resolvedSecondPrize = prize_second !== undefined ? prize_second : prizeSecond;
+  if (resolvedSecondPrize !== undefined) {
+    dynamicUpdatePayload.prize_second = parseFloat(resolvedSecondPrize) || 0.00;
+  }
+
+  const resolvedThirdPrize = prize_third !== undefined ? prize_third : prizeThird;
+  if (resolvedThirdPrize !== undefined) {
+    dynamicUpdatePayload.prize_third = parseFloat(resolvedThirdPrize) || 0.00;
+  }
+
+  const resolvedEntryFee = entry_fee !== undefined ? entry_fee : entryFee;
+  if (resolvedEntryFee !== undefined) {
+    dynamicUpdatePayload.entry_fee = parseFloat(resolvedEntryFee) || 0.00;
   }
 
   try {
