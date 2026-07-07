@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { useTournamentStore } from '../store/useTournamentStore';
 import type { Match } from '../store/useTournamentStore';
 import { SOCKET_URL } from '../socket';
-import { GitFork, Sparkles, Trophy, Move, X, Check, Loader2, HelpCircle } from 'lucide-react';
+import { GitFork, Sparkles, Trophy, Move, X, Check, Loader2, HelpCircle, RotateCcw } from 'lucide-react';
 
 /** =======================================================
  * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
@@ -106,6 +106,7 @@ export const BracketView = () => {
 
   const [isCustomizing, setIsCustomizing] = useState<boolean>(false);
   const [finalizeLoading, setFinalizeLoading] = useState<boolean>(false);
+  const [resetLoading, setResetLoading] = useState<boolean>(false);
   const [activeOverSlot, setActiveOverSlot] = useState<string | null>(null);
   
   const [bracketDraft, setBracketDraft] = useState<Record<string, PlayoffTeamDraft | null>>({});
@@ -189,7 +190,6 @@ export const BracketView = () => {
         return diffB - diffA;
       });
 
-      // DYNAMIC SLICING: Slices group extraction targets depending on team allocation densities
       if (singlePoolDetected) {
         if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
         if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
@@ -205,7 +205,6 @@ export const BracketView = () => {
       }
     });
 
-    // Sort finalists list by Rank value followed by group alphabetical tags
     const displaySortedSeeds = [...seeds].sort((a, b) => {
       if ((a.poolRank || 0) !== (b.poolRank || 0)) {
         return (a.poolRank || 0) - (b.poolRank || 0);
@@ -213,7 +212,6 @@ export const BracketView = () => {
       return (a.group_id || '').localeCompare(b.group_id || '');
     });
 
-    // 🚀 FIXED: Transformed block into a clean, expressions-based immutable assignment to fix 'no-useless-assignment'
     const size = singlePoolDetected 
       ? 4 
       : dualPoolDetected 
@@ -394,6 +392,37 @@ export const BracketView = () => {
       }
     } finally {
       setFinalizeLoading(false);
+    }
+  };
+
+  // 🔄 PURGE ACTION: Safely resets generated matches back into allocation states
+  const handleResetCurrentBracket = async () => {
+    if (!tournamentId || !selectedCategoryId) return;
+
+    const confirmation = window.confirm(
+      "Are you sure you want to reset this bracket?\n\nThis will permanently delete all generated playoff/elimination matches for this division and restore players to the Allocation Board."
+    );
+    if (!confirmation) return;
+
+    setResetLoading(true);
+    try {
+      const response = await axios.post(`${SOCKET_URL}/api/brackets/reset`, {
+        tournamentId,
+        categoryId: selectedCategoryId
+      });
+
+      alert(response.data.message || "Bracket knocked down successfully!");
+      setBracketDraft({});
+      setIsCustomizing(true); // Automatically shifts view workspace back to customization arrays
+    } catch (error) {
+      console.error("Playoff tree wipe process pipeline error:", error);
+      let runtimeMessage = "Failed to clear out your active production playoff structural trees.";
+      if (axios.isAxiosError(error)) {
+        runtimeMessage = error.response?.data?.error || runtimeMessage;
+      }
+      alert(runtimeMessage);
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -662,17 +691,39 @@ export const BracketView = () => {
           </h2>
         </div>
 
-        {databaseCategories.length > 0 && (
-          <select
-            value={selectedCategoryId}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 cursor-pointer transition-colors duration-200"
-          >
-            {databaseCategories.map((cat) => (
-              <option key={cat.category_id} value={cat.category_id}>{cat.category_name}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          {/* 🔄 RESET CONTROL ANCHOR: Exposed exclusively to admin operator tiers when active matches exist */}
+          {isAuthenticatedOperator && (
+            <button
+              type="button"
+              disabled={resetLoading}
+              onClick={handleResetCurrentBracket}
+              className="text-xs font-mono font-bold px-3 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 dark:bg-red-950/20 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-40 select-none"
+            >
+              {resetLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Resetting...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-3.5 w-3.5" /> Reset This Bracket
+                </>
+              )}
+            </button>
+          )}
+
+          {databaseCategories.length > 0 && (
+            <select
+              value={selectedCategoryId}
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 cursor-pointer transition-colors duration-200"
+            >
+              {databaseCategories.map((cat) => (
+                <option key={cat.category_id} value={cat.category_id}>{cat.category_name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-10">
