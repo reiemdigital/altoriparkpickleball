@@ -559,7 +559,8 @@ app.post('/api/tournaments/:id/seed-categories', requireAuth(['ADMIN']), async (
           gender_division: genderDivision,
           entry_fee: 0.00,
           max_slots: 16,
-          available_slots_remaining: 16
+          available_slots_remaining: 16,
+          qualifiers_count: 2
         });
       }
     }
@@ -731,7 +732,8 @@ app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: 
           max_slots: parseInt(max_slots, 10) || 16,
           prize_first: parseFloat(prize_first) || 0.00,
           prize_second: parseFloat(prize_second) || 0.00,
-          prize_third: parseFloat(prize_third) || 0.00
+          prize_third: parseFloat(prize_third) || 0.00,
+          qualifiers_count: 2
             }
           ])
           .select()
@@ -1364,7 +1366,7 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
 });
 
 /** =======================================================
- * 🔄 NEW ENDPOINT: PURGE & RESET SCOPED ELIMINATION TREES
+ * 🔄 ENDPOINT: PURGE & RESET SCOPED ELIMINATION TREES
  * ======================================================= */
 app.post('/api/brackets/reset', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
   const { tournamentId, categoryId } = req.body;
@@ -1373,7 +1375,6 @@ app.post('/api/brackets/reset', requireAuth(['ADMIN']), async (req: Request, res
   }
 
   try {
-    // Drop execution row items specifically matching elimination profiles
     const { error: matchDeleteError } = await supabase
       .from('matches')
       .delete()
@@ -1383,12 +1384,10 @@ app.post('/api/brackets/reset', requireAuth(['ADMIN']), async (req: Request, res
 
     if (matchDeleteError) throw matchDeleteError;
 
-    // Clean dynamic server cache frames for ongoing live match indicators
     Object.keys(activeLiveSessions).forEach((matchId) => {
       delete activeLiveSessions[matchId];
     });
 
-    // Notify clients across channels to pull state adjustments down from storage
     io.to(`tournament:${tournamentId}`).emit('standings-refresh');
 
     return res.json({ 
@@ -1434,29 +1433,53 @@ app.put('/api/categories/:id', requireAuth(['ADMIN']), async (req: Request, res:
   }
 });
 
+/** =======================================================
+ * 🛠️ REFACTORED: POLYMORPHIC SETTINGS ROUTING LABELS
+ * ======================================================= */
 app.put('/api/config/category-settings', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
-  const { tournamentId, categoryId, maxSlots, groupCount } = req.body;
-  const parsedMaxSlots = parseInt(maxSlots, 10);
+  const { tournamentId, categoryId, maxSlots, groupCount, qualifiersCount } = req.body;
   
-  if (isNaN(parsedMaxSlots) || !categoryId) {
-    return res.status(400).json({ error: "Validation failure: Invalid category ID or slots value type supplied." });
+  if (!categoryId) {
+    return res.status(400).json({ error: "Validation failure: Target division category ID is required." });
+  }
+
+  // Construct independent parameter modifications dynamically to facilitate multi-form execution
+  const dynamicUpdatePayload: Record<string, any> = {};
+
+  if (maxSlots !== undefined) {
+    const parsedMaxSlots = parseInt(maxSlots, 10);
+    if (!isNaN(parsedMaxSlots)) {
+      dynamicUpdatePayload.max_slots = parsedMaxSlots;
+    }
+  }
+
+  if (qualifiersCount !== undefined) {
+    const parsedQualifiersCount = parseInt(qualifiersCount, 10);
+    if (!isNaN(parsedQualifiersCount) && parsedQualifiersCount >= 1) {
+      dynamicUpdatePayload.qualifiers_count = parsedQualifiersCount;
+    }
   }
 
   try {
-    const { data: updated, error } = await supabase
-      .from('categories')
-      .update({ max_slots: parsedMaxSlots })
-      .eq('category_id', categoryId)
-      .select()
-      .single();
+    let updatedRecord = null;
 
-    if (error) {
-      console.error("❌ Supabase update error:", error.message);
-      return res.status(400).json({ error: `Database Error: ${error.message}` });
+    if (Object.keys(dynamicUpdatePayload).length > 0) {
+      const { data, error } = await supabase
+        .from('categories')
+        .update(dynamicUpdatePayload)
+        .eq('category_id', categoryId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("❌ Supabase configuration payload update failure:", error.message);
+        return res.status(400).json({ error: `Database Constraint Error: ${error.message}` });
+      }
+      updatedRecord = data;
     }
     
     io.to(`tournament:${tournamentId}`).emit('registration-updated');
-    return res.json({ success: true, updated, groupCount });
+    return res.json({ success: true, updated: updatedRecord, groupCount });
   } catch (err: unknown) {
     console.error("❌ Complex category settings route crash:", err);
     return res.status(500).json({ error: "Internal server error processing category parameters." });

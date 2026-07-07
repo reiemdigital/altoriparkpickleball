@@ -1,7 +1,9 @@
 // client/src/components/StandingsTable.tsx
 import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/useTournamentStore';
-import { Trophy, Layers, Lock } from 'lucide-react';
+import { SOCKET_URL } from '../socket';
+import axios from 'axios';
+import { Trophy, Layers, Lock, Sliders } from 'lucide-react';
 
 /** =======================================================
  * DATA MODEL INTERFACES FOR STRICT TYPE-CHECKING
@@ -23,6 +25,7 @@ interface TeamStanding {
 interface CategoryMapping {
   category_id: string;
   category_name: string;
+  qualifiers_count?: number;
 }
 
 export const StandingsTable = () => {
@@ -31,15 +34,20 @@ export const StandingsTable = () => {
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const matches = useTournamentStore((state) => state.matches);
   
-  // 🛡️ PERFORMANCE BEST PRACTICE: Track selection by unique database key ID instead of mutable strings
+  // PERFORMANCE BEST PRACTICE: Track selection by unique database key ID instead of mutable strings
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  
+  // Local state directory to map qualifier threshold overrides reactively per category context
+  const [qualifiersMap, setQualifiersMap] = useState<Record<string, number>>({});
 
   // Extract real-time categories array directly from dynamic database gate context
   const databaseCategories = useMemo(() => {
     return (gatewayData?.categories || []) as CategoryMapping[];
   }, [gatewayData]);
 
-  // ⚡ AUTOMATED STATE LIFECYCLE SYNC LAYER
+  const isAdmin = gatewayData?.isAdmin;
+
+  // AUTOMATED STATE LIFECYCLE SYNC LAYER
   useEffect(() => {
     if (databaseCategories.length > 0 && !selectedCategoryId) {
       // Defer macro-task execution timing to break synchronous re-rendering loops seamlessly
@@ -50,7 +58,34 @@ export const StandingsTable = () => {
     }
   }, [databaseCategories, selectedCategoryId]);
 
-  // 🚀 REFACTORED: Determine if the round-robin group phase has concluded for UI state visibility
+  // Dynamically extract threshold value from backend metrics with safe local fallbacks
+  const currentQualifiersCount = useMemo(() => {
+    if (qualifiersMap[selectedCategoryId] !== undefined) {
+      return qualifiersMap[selectedCategoryId];
+    }
+    const targetCat = databaseCategories.find(c => c.category_id === selectedCategoryId);
+    return targetCat?.qualifiers_count ?? 2;
+  }, [selectedCategoryId, qualifiersMap, databaseCategories]);
+
+  // Handle setting updates and dispatch persistent payload handshakes upstream
+  const handleQualifiersChange = async (val: number) => {
+    const baselineBoundValue = Math.max(1, val);
+    setQualifiersMap(prev => ({ ...prev, [selectedCategoryId]: baselineBoundValue }));
+
+    if (gatewayData?.tournament?.id) {
+      try {
+        await axios.put(`${SOCKET_URL}/api/config/category-settings`, {
+          tournamentId: gatewayData.tournament.id,
+          categoryId: selectedCategoryId,
+          qualifiersCount: baselineBoundValue
+        }, { withCredentials: true });
+      } catch (err) {
+        console.error("Failed to persist custom qualifiers target count:", err);
+      }
+    }
+  };
+
+  // REFACTORED: Determine if the round-robin group phase has concluded for UI state visibility
   const isGroupStageFinished = useMemo(() => {
     if (!selectedCategoryId) return false;
     
@@ -65,7 +100,7 @@ export const StandingsTable = () => {
     return allRoundRobinFinished || eliminationStarted;
   }, [matches, selectedCategoryId]);
 
-  // 🚀 REFACTORED: Dynamically compute group phase data on-the-fly ONLY using ROUND_ROBIN matches
+  // REFACTORED: Dynamically compute group phase data on-the-fly ONLY using ROUND_ROBIN matches
   const computedStandings = useMemo(() => {
     if (!selectedCategoryId) return [];
 
@@ -87,7 +122,7 @@ export const StandingsTable = () => {
       m.status === 'FINISHED'
     );
 
-    // Build independent, local metrics metrics maps to insulate group score boundaries from elimination updates
+    // Build independent, local metrics maps to insulate group score boundaries from elimination updates
     return baseTeams.map(team => {
       let matches_played = 0;
       let wins = 0;
@@ -168,19 +203,38 @@ export const StandingsTable = () => {
           </div>
         </div>
 
-        {databaseCategories.length > 0 && (
-          <select
-            value={selectedCategoryId}
-            onChange={(e) => setSelectedCategoryId(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 transition-colors duration-200 cursor-pointer"
-          >
-            {databaseCategories.map((cat) => (
-              <option key={cat.category_id} value={cat.category_id}>
-                {cat.category_name}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+          {/* CONFIGURATION LAYER: Custom qualifier rule settings block visible exclusively to admin entities */}
+          {isAdmin && selectedCategoryId && computedStandings.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-950 dark:border-white/10 dark:text-slate-300 rounded-xl font-mono text-[11px] animate-in fade-in duration-200">
+              <Sliders className="h-3.5 w-3.5 text-purple-500" />
+              <span className="font-bold uppercase tracking-wider text-[9px] text-slate-400">Qualifiers Count:</span>
+              <input 
+                type="number"
+                min="1"
+                max="32"
+                value={currentQualifiersCount}
+                onChange={(e) => handleQualifiersChange(parseInt(e.target.value, 10) || 1)}
+                className="w-8 bg-transparent text-center font-black text-purple-600 dark:text-purple-400 focus:outline-hidden"
+                title="Modify pool validation limits"
+              />
+            </div>
+          )}
+
+          {databaseCategories.length > 0 && (
+            <select
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 transition-colors duration-200 cursor-pointer"
+            >
+              {databaseCategories.map((cat) => (
+                <option key={cat.category_id} value={cat.category_id}>
+                  {cat.category_name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {computedStandings.length === 0 ? (
@@ -220,8 +274,8 @@ export const StandingsTable = () => {
                         const diff = team.points_for - team.points_against;
                         const losses = team.matches_played - team.wins;
                         
-                        // Highlight top 2 teams PER POOL for playoff qualifications
-                        const qualifiesForPlayoffs = index < 2;
+                        // Highlight top teams dynamically using the resolved threshold parameters
+                        const qualifiesForPlayoffs = index < currentQualifiersCount;
 
                         return (
                           <tr 
@@ -234,7 +288,6 @@ export const StandingsTable = () => {
                               <span className={`inline-block w-6 text-center ${
                                 qualifiesForPlayoffs ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'
                               }`}>
-                                {/* ✅ FIXED: Corrected template arithmetic string injection syntax error here */}
                                 {String(index + 1).padStart(2, '0')}
                               </span>
                             </td>
