@@ -179,7 +179,7 @@ export function TournamentGateway() {
     };
   }, [tournamentId, fetchGatewayInfo]);
 
-  // 🚀 FIXED: Wrapped within a task scheduler to resolve react-hooks/set-state-in-effect cascading renders
+  // Wrapped within a task scheduler to resolve react-hooks/set-state-in-effect cascading renders
   useEffect(() => {
     if (categories && categories.length > 0) {
       const deferRosters = setTimeout(() => {
@@ -236,7 +236,6 @@ export function TournamentGateway() {
     e.preventDefault();
     if (!newCatName.trim()) return;
 
-    // 🚀 FIXED: Substituted ternary side-effect expression with clean early return block to fix @typescript-eslint/no-unused-expressions
     if (formSubmitting) return;
     setFormSubmitting(true);
 
@@ -295,7 +294,7 @@ export function TournamentGateway() {
       await fetchGatewayInfo();
     } catch (err) {
       console.error("Division master record execution crash:", err);
-      alert("Failed to preserve category specifications changes.");
+      alert("Failed to save category specifications changes.");
     } finally {
       setEditFormSubmitting(false);
     }
@@ -544,11 +543,11 @@ export function TournamentGateway() {
                               setEditCatName(cat.category_name);
                               setEditGenderDiv(cat.gender_division === 'Male' || cat.gender_division === 'Female' ? cat.gender_division : 'Mixed');
                               setEditCategoryType(cat.category_type === 'Singles' ? 'Singles' : 'Doubles');
-                              setEditEntryFee(String(cat.entry_fee || '0'));
-                              setEditMaxSlots(String(cat.max_slots || '16'));
-                              setEditPrize1st(String(cat.prize_first || '0'));
-                              setEditPrize2nd(String(cat.prize_second || '0'));
-                              setEditPrize3rd(String(cat.prize_third || '0'));
+                              setEditEntryFee(String(cat.entry_fee ?? '0'));
+                              setEditMaxSlots(String(cat.max_slots ?? '16'));
+                              setEditPrize1st(String(cat.prize_first ?? '0'));
+                              setEditPrize2nd(String(cat.prize_second ?? '0'));
+                              setEditPrize3rd(String(cat.prize_third ?? '0'));
                               setShowEditModal(true);
                             }}
                             className="p-1 text-slate-400 hover:text-purple-600 dark:text-slate-500 dark:hover:text-purple-400 rounded-md hover:bg-purple-500/10 transition-all cursor-pointer"
@@ -1106,9 +1105,9 @@ export function TournamentGateway() {
                 </button>
                 <button 
                   type="submit" disabled={editFormSubmitting} 
-                  className="px-5 py-2 bg-[#088505] text-white rounded-xl hover:bg-opacity-90 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 bg-[#088505] text-white rounded-xl hover:bg-opacity-90 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 min-w-32 justify-center"
                 >
-                  {editFormSubmitting ? "Saving changes..." : "Preserve Alterations"}
+                  {editFormSubmitting ? "Saving Changes..." : "Save Changes"}
                 </button>
               </div>
             </form>
