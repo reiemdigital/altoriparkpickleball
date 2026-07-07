@@ -707,7 +707,6 @@ app.post('/api/groups/unseed', requireAuth(['ADMIN']), async (req: Request, res:
  * FIXED: ROUTE PARAMETER DESTUCTURING NOMENCLATURE MATCH
  * ======================================================= */
 app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
-  // Extract 'id' to perfectly match the ':id' parameter definition, then alias it to tournamentId
   const { id: tournamentId } = req.params; 
   
   const { 
@@ -724,7 +723,7 @@ app.post('/api/tournaments/:id/categories', requireAuth(['ADMIN']), async (req: 
       .from('categories')
       .insert([
         {
-          tournament_id: tournamentId, // Now accurately passes the target UUID string
+          tournament_id: tournamentId, 
           category_name: category_name.trim(),
           gender_division: gender_division || 'Mixed',
           category_type: category_type || 'Doubles', 
@@ -1361,6 +1360,44 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
   } catch (err: any) {
     console.error("❌ Critical Playoff Generation Architecture Fault:", err);
     return res.status(500).json({ error: "Internal elimination elimination failure.", details: err?.message || err });
+  }
+});
+
+/** =======================================================
+ * 🔄 NEW ENDPOINT: PURGE & RESET SCOPED ELIMINATION TREES
+ * ======================================================= */
+app.post('/api/brackets/reset', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+  const { tournamentId, categoryId } = req.body;
+  if (!tournamentId || !categoryId) {
+    return res.status(400).json({ error: "Required parameters are missing to execute the reset command." });
+  }
+
+  try {
+    // Drop execution row items specifically matching elimination profiles
+    const { error: matchDeleteError } = await supabase
+      .from('matches')
+      .delete()
+      .eq('tournament_id', tournamentId)
+      .eq('category_id', categoryId)
+      .eq('match_type', 'ELIMINATION');
+
+    if (matchDeleteError) throw matchDeleteError;
+
+    // Clean dynamic server cache frames for ongoing live match indicators
+    Object.keys(activeLiveSessions).forEach((matchId) => {
+      delete activeLiveSessions[matchId];
+    });
+
+    // Notify clients across channels to pull state adjustments down from storage
+    io.to(`tournament:${tournamentId}`).emit('standings-refresh');
+
+    return res.json({ 
+      success: true, 
+      message: "Knockout bracket deleted successfully. Category elements reverted to draft board arrays." 
+    });
+  } catch (err: any) {
+    console.error("❌ Critical Backend Playoff Reset Failure Matrix:", err);
+    return res.status(500).json({ error: "Failed to reset division knockout bracket infrastructure.", details: err?.message || err });
   }
 });
 
