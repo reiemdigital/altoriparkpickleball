@@ -287,7 +287,7 @@ export const AdminPanel = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
+      <div className="grid grid-cols-1 xl:grid-cols-1 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
         
         {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP */}
         <div className="xl:col-span-4 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-75 xl:min-h-130">
@@ -311,7 +311,30 @@ export const AdminPanel = () => {
                     
                     <div className="text-[11px] truncate text-slate-800 font-sans font-semibold dark:text-slate-200 flex flex-col gap-0.5 min-w-0">
                       <div className="truncate">{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500 font-bold">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
-                      <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
+                      
+                      {/* 🛠️ REFACTORED: Appended dynamic pool / group badge context to active court remote labels */}
+                      <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate flex items-center gap-1.5">
+                        <span className="truncate">{m.category?.name || "General Category"}</span>
+                        {(() => {
+                          const teamProfile = standings.find((t) => t.id === m.team1_id);
+                          const poolLabel = m.match_type === 'ELIMINATION' 
+                            ? (m.bracket_position || 'Playoffs')
+                            : (teamProfile?.group_id || null);
+                            
+                          if (!poolLabel) return null;
+                          const isPlayoffStage = m.match_type === 'ELIMINATION';
+                          
+                          return (
+                            <span className={`px-1.5 py-0.5 rounded-md font-mono text-[8px] font-black border tracking-wider shrink-0 uppercase inline-block ${
+                              isPlayoffStage 
+                                ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                                : 'bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'
+                            }`}>
+                              {poolLabel}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
 
                     <Link 
@@ -329,7 +352,7 @@ export const AdminPanel = () => {
 
         {/* VIEW BLOCK 2: COMMAND SCHEDULER QUEUE PANEL */}
         <div className="xl:col-span-8 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-87.5 xl:min-h-130">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:border-white/5 pb-3 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 dark:white/5 pb-3 shrink-0">
             <h2 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider font-mono">
               Director's Command Console
             </h2>
@@ -437,7 +460,6 @@ export const AdminPanel = () => {
                               <Layers className="h-3 w-3 text-purple-500 shrink-0" /> 
                               <span className="truncate">{match.category?.name || "General Category"}</span>
                               
-                              {/* 🚀 FIXED: Render logic automatically accommodates new QF1-QF4 strings with standard elimination badging */}
                               {(() => {
                                 const teamProfile = standings.find((t) => t.id === match.team1_id);
                                 const poolLabel = match.match_type === 'ELIMINATION' 
