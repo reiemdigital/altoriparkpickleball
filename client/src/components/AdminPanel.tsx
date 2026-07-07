@@ -13,7 +13,8 @@ import {
   Activity,
   Loader2,
   Search,
-  X
+  X,
+  Grid
 } from 'lucide-react';
 import { useAlertStore } from '../store/useAlertStore';
 
@@ -33,7 +34,7 @@ interface CustomMatchExtension {
   match_type?: 'ROUND_ROBIN' | 'ELIMINATION';
   
   // 🚀 UPDATED CONTRACT: Aligned with the expanded store specifications to prevent compilation breakage on QF node hydrations
-  bracket_position?: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | null;
+  bracket_position?: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null;
   
   team1?: { team_name: string };
   team2?: { team_name: string };
@@ -96,6 +97,12 @@ export const AdminPanel = () => {
   
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // =========================================================================
+  // 🎛️ NEW: STATE TRACKING FOR ACTIVE MASTER-CHILD SELECTIONS
+  // =========================================================================
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string | null>(null);
+
   const activeCachedRole = (sessionStorage.getItem('altori_admin_role') || sessionStorage.getItem('altori_user_role') || 'STAFF').toUpperCase();
   const isStaff = activeCachedRole === 'STAFF';
 
@@ -155,34 +162,90 @@ export const AdminPanel = () => {
     return new Set(currentlyLiveMatches.flatMap(m => [m.team1_id, m.team2_id]));
   }, [currentlyLiveMatches]);
 
-  const processedPendingMatches = useMemo(() => {
+  // =========================================================================
+  // 🧮 MEMOIZED SELECTION LAYER DEVIATIONS
+  // =========================================================================
+  const availablePendingMatches = useMemo(() => {
     const pending = matches.filter((m) => m.status === 'PENDING');
-    
-    // 🚀 FIXED: Filter out matches containing a system "BYE" wildcard token to safeguard queue layout logic
-    const nonByePending = pending.filter(m => {
+    return pending.filter(m => {
       const t1Name = m.team1?.team_name?.toUpperCase() || '';
       const t2Name = m.team2?.team_name?.toUpperCase() || '';
       return t1Name !== 'BYE' && t2Name !== 'BYE';
     });
-    
-    const parsedQuery = searchQuery.trim().toLowerCase();
-    const filteredMatches = parsedQuery 
-      ? nonByePending.filter(m => {
-          const nameT1 = m.team1?.team_name?.toLowerCase() || '';
-          const nameT2 = m.team2?.team_name?.toLowerCase() || '';
-          const division = m.category?.name?.toLowerCase() || '';
-          
-          const localizedTeamDoc = standings.find((t) => t.id === m.team1_id);
-          const assignedGroup = localizedTeamDoc?.group_id?.toLowerCase() || '';
-          const positionBracket = m.match_type === 'ELIMINATION' ? (m.bracket_position?.toLowerCase() || 'playoffs') : '';
+  }, [matches]);
 
-          return nameT1.includes(parsedQuery) || 
-                 nameT2.includes(parsedQuery) || 
-                 division.includes(parsedQuery) || 
-                 assignedGroup.includes(parsedQuery) ||
-                 positionBracket.includes(parsedQuery);
-        })
-      : nonByePending;
+  const uniqueCategoriesWithPending = useMemo(() => {
+    const categorySet = new Set<string>();
+    availablePendingMatches.forEach(m => {
+      if (m.category?.name) categorySet.add(m.category.name);
+    });
+    return Array.from(categorySet).sort();
+  }, [availablePendingMatches]);
+
+  const uniqueGroupsForSelectedCategory = useMemo(() => {
+    if (!selectedCategoryName) return [];
+    
+    const groupSet = new Set<string>();
+    const filteredPending = availablePendingMatches.filter(m => m.category?.name === selectedCategoryName);
+
+    filteredPending.forEach(m => {
+      if (m.match_type === 'ELIMINATION') {
+        if (m.bracket_position) {
+          groupSet.add(m.bracket_position);
+        } else {
+          groupSet.add('Playoffs');
+        }
+      } else {
+        const teamProfile = standings.find((t) => t.id === m.team1_id);
+        if (teamProfile?.group_id) {
+          groupSet.add(teamProfile.group_id);
+        }
+      }
+    });
+
+    return Array.from(groupSet).sort();
+  }, [selectedCategoryName, availablePendingMatches, standings]);
+
+  const processedPendingMatches = useMemo(() => {
+    let filteredMatches = availablePendingMatches;
+
+    // Apply Sticky Master Category Button Filters
+    if (selectedCategoryName) {
+      filteredMatches = filteredMatches.filter(m => m.category?.name === selectedCategoryName);
+    }
+
+    // Apply Sticky Dependent Child Group/Pool Buttons Filter
+    if (selectedCategoryName && selectedGroupFilter) {
+      filteredMatches = filteredMatches.filter(m => {
+        if (m.match_type === 'ELIMINATION') {
+          const currentPos = m.bracket_position || 'Playoffs';
+          return currentPos === selectedGroupFilter;
+        } else {
+          const teamProfile = standings.find((t) => t.id === m.team1_id);
+          return teamProfile?.group_id === selectedGroupFilter;
+        }
+      });
+    }
+
+    // Apply Runtime Text Field Evaluation Layer
+    const parsedQuery = searchQuery.trim().toLowerCase();
+    if (parsedQuery) {
+      filteredMatches = filteredMatches.filter(m => {
+        const nameT1 = m.team1?.team_name?.toLowerCase() || '';
+        const nameT2 = m.team2?.team_name?.toLowerCase() || '';
+        const division = m.category?.name?.toLowerCase() || '';
+        
+        const localizedTeamDoc = standings.find((t) => t.id === m.team1_id);
+        const assignedGroup = localizedTeamDoc?.group_id?.toLowerCase() || '';
+        const positionBracket = m.match_type === 'ELIMINATION' ? (m.bracket_position?.toLowerCase() || 'playoffs') : '';
+
+        return nameT1.includes(parsedQuery) || 
+               nameT2.includes(parsedQuery) || 
+               division.includes(parsedQuery) || 
+               assignedGroup.includes(parsedQuery) ||
+               positionBracket.includes(parsedQuery);
+      });
+    }
 
     return [...filteredMatches].sort((a, b) => {
       const aBlocked = busyTeamIds.has(a.team1_id) || busyTeamIds.has(a.team2_id);
@@ -191,7 +254,28 @@ export const AdminPanel = () => {
       if (!aBlocked && bBlocked) return -1;
       return 0;
     });
-  }, [matches, busyTeamIds, searchQuery, standings]);
+  }, [availablePendingMatches, selectedCategoryName, selectedGroupFilter, searchQuery, standings, busyTeamIds]);
+
+  // =========================================================================
+  // ⚙️ ACTION IMPLEMENTATION FLOW HANDLERS
+  // =========================================================================
+  const handleCategoryFilterToggle = (categoryName: string) => {
+    if (selectedCategoryName === categoryName) {
+      setSelectedCategoryName(null);
+      setSelectedGroupFilter(null);
+    } else {
+      setSelectedCategoryName(categoryName);
+      setSelectedGroupFilter(null);
+    }
+  };
+
+  const handleGroupFilterToggle = (groupLabel: string) => {
+    if (selectedGroupFilter === groupLabel) {
+      setSelectedGroupFilter(null);
+    } else {
+      setSelectedGroupFilter(groupLabel);
+    }
+  };
 
   const handleCourtChange = (matchId: string, courtId: number) => {
     setCourtAssignments((prev) => ({ ...prev, [matchId]: courtId }));
@@ -311,7 +395,28 @@ export const AdminPanel = () => {
                     
                     <div className="text-[11px] truncate text-slate-800 font-sans font-semibold dark:text-slate-200 flex flex-col gap-0.5 min-w-0">
                       <div className="truncate">{m.team1?.team_name || "Unknown Team"} <span className="text-purple-500 font-bold">vs</span> {m.team2?.team_name || "Unknown Team"}</div>
-                      <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{m.category?.name || "General Category"}</div>
+                      <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate flex items-center gap-1.5">
+                        <span className="truncate">{m.category?.name || "General Category"}</span>
+                        {(() => {
+                          const teamProfile = standings.find((t) => t.id === m.team1_id);
+                          const poolLabel = m.match_type === 'ELIMINATION' 
+                            ? (m.bracket_position || 'Playoffs')
+                            : (teamProfile?.group_id || null);
+                            
+                          if (!poolLabel) return null;
+                          const isPlayoffStage = m.match_type === 'ELIMINATION';
+                          
+                          return (
+                            <span className={`px-1.5 py-0.5 rounded-md font-mono text-[8px] font-black border tracking-wider shrink-0 uppercase inline-block ${
+                              isPlayoffStage 
+                                ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                                : 'bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'
+                            }`}>
+                              {poolLabel}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
 
                     <Link 
@@ -355,6 +460,72 @@ export const AdminPanel = () => {
             </div>
           </div>
 
+          {/* =========================================================================
+           * 🚀 NEW: MASTER-CHILD STICKY BUTTON FILTERS CONTAINER VIEWPORTS
+           * ========================================================================= */}
+          <div className="mb-4 space-y-3 bg-slate-50/60 p-3.5 border border-slate-200/80 rounded-xl dark:bg-slate-950/40 dark:border-white/5 shrink-0 animate-in fade-in duration-200">
+            
+            {/* Master Category Toggles */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Layers className="h-3 w-3 text-purple-500" /> Filter Tournament Division
+              </span>
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                {uniqueCategoriesWithPending.length === 0 ? (
+                  <span className="text-[11px] font-mono text-slate-400 italic">No pending queues found across divisions.</span>
+                ) : (
+                  uniqueCategoriesWithPending.map((catName) => {
+                    const isSelected = selectedCategoryName === catName;
+                    return (
+                      <button
+                        key={catName}
+                        onClick={() => handleCategoryFilterToggle(catName)}
+                        className={`text-[10px] font-sans font-bold px-2.5 py-1.5 rounded-lg border tracking-wide transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {catName}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Child Group/Bracket Toggles */}
+            {selectedCategoryName && (
+              <div className="pt-2.5 border-t border-slate-200/60 dark:border-white/5 space-y-1.5 animate-in slide-in-from-top-1 duration-200">
+                <span className="text-[10px] font-mono font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Grid className="h-3 w-3 text-purple-500" /> Filter Group Pool / Position
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {uniqueGroupsForSelectedCategory.length === 0 ? (
+                    <span className="text-[11px] font-mono text-slate-400 italic">No specific pool metadata assigned to this channel.</span>
+                  ) : (
+                    uniqueGroupsForSelectedCategory.map((groupLabel) => {
+                      const isGroupSelected = selectedGroupFilter === groupLabel;
+                      return (
+                        <button
+                          key={groupLabel}
+                          onClick={() => handleGroupFilterToggle(groupLabel)}
+                          className={`text-[9px] font-mono font-black px-2.5 py-1 rounded-md border tracking-wider transition-all cursor-pointer uppercase ${
+                            isGroupSelected
+                              ? 'bg-purple-100 border-purple-300 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-500/30 shadow-xs'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {groupLabel}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Smart Filter Search Input Box */}
           <div className="mb-4 relative shrink-0">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -364,15 +535,20 @@ export const AdminPanel = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by team name, category division, or group pool letter..."
+              placeholder="Refine further by team name, category division, or group pool letter..."
               className="w-full bg-slate-50/50 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2.5 text-xs font-sans font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:bg-white dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 transition-all min-h-9.5"
             />
-            {searchQuery && (
+            {(searchQuery || selectedCategoryName || selectedGroupFilter) && (
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategoryName(null);
+                  setSelectedGroupFilter(null);
+                }}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors cursor-pointer group"
+                title="Clear all filters"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5 group-hover:rotate-90 transition-transform duration-200" />
               </button>
             )}
           </div>
@@ -385,7 +561,9 @@ export const AdminPanel = () => {
               </div>
             ) : processedPendingMatches.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500 italic pt-2">
-                {searchQuery ? "No matches match your filter criteria." : "No pending matches available. All courts are deployed or finished!"}
+                {searchQuery || selectedCategoryName || selectedGroupFilter 
+                  ? "No matches match your active filter combinations." 
+                  : "No pending matches available. All courts are deployed or finished!"}
               </p>
             ) : (
               <div className="space-y-3 w-full">
@@ -437,7 +615,6 @@ export const AdminPanel = () => {
                               <Layers className="h-3 w-3 text-purple-500 shrink-0" /> 
                               <span className="truncate">{match.category?.name || "General Category"}</span>
                               
-                              {/* 🚀 FIXED: Render logic automatically accommodates new QF1-QF4 strings with standard elimination badging */}
                               {(() => {
                                 const teamProfile = standings.find((t) => t.id === match.team1_id);
                                 const poolLabel = match.match_type === 'ELIMINATION' 
