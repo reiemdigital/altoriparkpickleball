@@ -27,6 +27,7 @@ interface TeamStanding {
 interface CategoryMapping {
   category_id: string;
   category_name: string;
+  qualifiers_count?: number; // Inherit custom qualifier counts from database schema
 }
 
 interface RenderNodeProps {
@@ -154,9 +155,9 @@ export const BracketView = () => {
   }, [qf1, qf2, qf3, qf4]);
 
   // =========================================================================
-  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH MULTI-POOL EXPANSION SEEDING
+  // 🧮 PLAYOFF DATA DERIVATION MATRIX WITH DYNAMIC MODAL RE-SEEDING
   // =========================================================================
-  const { calculatedSeeds, targetBracketSize, isSingleGroupBypass, isDualGroupExpansion } = useMemo(() => {
+  const { calculatedSeeds, targetBracketSize, isSingleGroupBypass } = useMemo(() => {
     if (!selectedCategoryId || standings.length === 0) {
       return { calculatedSeeds: [], targetBracketSize: 4, isSingleGroupBypass: false, isDualGroupExpansion: false };
     }
@@ -180,6 +181,10 @@ export const BracketView = () => {
     const singlePoolDetected = poolKeys.length === 1;
     const dualPoolDetected = poolKeys.length === 2;
 
+    // 🎯 REFACTORED SEED SLICER: Harvest qualifiers based directly on the custom config settings
+    const targetCat = databaseCategories.find(c => c.category_id === selectedCategoryId);
+    const qualifiersCount = targetCat?.qualifiers_count ?? 2;
+
     const seeds: PlayoffTeamDraft[] = [];
     
     poolKeys.sort().forEach((poolLabel) => {
@@ -190,21 +195,15 @@ export const BracketView = () => {
         return diffB - diffA;
       });
 
-      if (singlePoolDetected) {
-        if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
-        if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
-        if (sortedPool[2]) seeds.push({ ...sortedPool[2], poolRank: 3 });
-        if (sortedPool[3]) seeds.push({ ...sortedPool[3], poolRank: 4 });
-      } else if (dualPoolDetected) {
-        if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
-        if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
-        if (sortedPool[2]) seeds.push({ ...sortedPool[2], poolRank: 3 });
-      } else {
-        if (sortedPool[0]) seeds.push({ ...sortedPool[0], poolRank: 1 });
-        if (sortedPool[1]) seeds.push({ ...sortedPool[1], poolRank: 2 });
+      // Iteratively extract ranked teams up to the custom qualifiers count rule threshold limit
+      for (let rankIndex = 0; rankIndex < qualifiersCount; rankIndex++) {
+        if (sortedPool[rankIndex]) {
+          seeds.push({ ...sortedPool[rankIndex], poolRank: rankIndex + 1 });
+        }
       }
     });
 
+    // Sort finalists list by Rank value followed by group alphabetical tags
     const displaySortedSeeds = [...seeds].sort((a, b) => {
       if ((a.poolRank || 0) !== (b.poolRank || 0)) {
         return (a.poolRank || 0) - (b.poolRank || 0);
@@ -212,13 +211,8 @@ export const BracketView = () => {
       return (a.group_id || '').localeCompare(b.group_id || '');
     });
 
-    const size = singlePoolDetected 
-      ? 4 
-      : dualPoolDetected 
-        ? 8 
-        : displaySortedSeeds.length > 4 
-          ? 8 
-          : 4;
+    // Scalable bracket selection matrix sizing determined by length parameters
+    const size = displaySortedSeeds.length > 4 ? 8 : 4;
 
     return { 
       calculatedSeeds: displaySortedSeeds, 
@@ -226,7 +220,7 @@ export const BracketView = () => {
       isSingleGroupBypass: singlePoolDetected,
       isDualGroupExpansion: dualPoolDetected
     };
-  }, [standings, selectedCategoryId]);
+  }, [standings, selectedCategoryId, databaseCategories]);
 
   const eligiblePlayoffTeams = useMemo(() => {
     const assignedTeamIds = new Set(
@@ -395,7 +389,6 @@ export const BracketView = () => {
     }
   };
 
-  // 🔄 PURGE ACTION: Safely resets generated matches back into allocation states
   const handleResetCurrentBracket = async () => {
     if (!tournamentId || !selectedCategoryId) return;
 
@@ -413,7 +406,7 @@ export const BracketView = () => {
 
       alert(response.data.message || "Bracket knocked down successfully!");
       setBracketDraft({});
-      setIsCustomizing(true); // Automatically shifts view workspace back to customization arrays
+      setIsCustomizing(true);
     } catch (error) {
       console.error("Playoff tree wipe process pipeline error:", error);
       let runtimeMessage = "Failed to clear out your active production playoff structural trees.";
@@ -510,12 +503,11 @@ export const BracketView = () => {
                 <h3 className="text-xs font-black font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
                   <Move className="h-3.5 w-3.5 text-purple-500" /> Finalists Allocation Board
                 </h3>
+                {/* 🎯 REFACTORED: Description text now adaptively changes layout labels without hardcoded values */}
                 <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
                   {isSingleGroupBypass 
-                    ? "Single Group Mode Active: The top 4 ranked players/teams from group play qualify directly into the Semifinals wireframe targets."
-                    : isDualGroupExpansion
-                      ? "Dual Group Expansion Active: The top 3 ranked players/teams from both groups qualify. Fill the 8-slot wireframe wires below using standard seeds or Wildcard BYE counters."
-                      : "Drag teams or BYE placeholders onto the 8-slot Quarter-Final layout wires."}
+                    ? "Single Group Mode Active: Qualified players/teams from group play advance directly into the Semifinals wireframe targets."
+                    : "Multi-Pool Play Active: Qualified players/teams from group stages are loaded. Fill the wireframe slots below using standard seeds or Wildcard BYE counters."}
                 </p>
               </div>
 
@@ -692,7 +684,6 @@ export const BracketView = () => {
         </div>
 
         <div className="flex items-center gap-3 self-end sm:self-auto">
-          {/* 🔄 RESET CONTROL ANCHOR: Exposed exclusively to admin operator tiers when active matches exist */}
           {isAuthenticatedOperator && (
             <button
               type="button"
