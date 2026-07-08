@@ -394,7 +394,7 @@ export const AdminPanel = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 sm:gap-6 items-start animate-in fade-in duration-200">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start animate-in fade-in duration-200">
         
         {/* VIEW BLOCK 1: ACTIVE LIVE ACCESS REMOTES MAP */}
         <div className="xl:col-span-3 p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:border-white/5 dark:bg-slate-900/20 transition-all flex flex-col min-h-75 xl:min-h-130">
