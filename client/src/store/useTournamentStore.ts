@@ -46,17 +46,12 @@ export interface Match {
   referee_name: string | null;
   pin_code: string | null;
   match_type: 'ROUND_ROBIN' | 'ELIMINATION';
-  
-  // 🚀 UPDATED CONTRACT: Expanded bracket enum string union vectors to natively map Quarter-Final tracking keys
   bracket_position: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null;
-  
   started_at: string | null;
   ended_at: string | null;
-  
   team1?: { team_name: string; group_id?: string | null };
   team2?: { team_name: string; group_id?: string | null };
   category?: { name: string };
-  
   score1?: number;
   score2?: number;
   refereeName?: string | null;
@@ -133,10 +128,24 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   updateMatch: (updatedMatch) => set((state) => {
     const matchExists = state.matches.some((m) => m.id === updatedMatch.id);
+    const nextMatches = matchExists
+      ? state.matches.map((m) => m.id === updatedMatch.id ? updatedMatch : m)
+      : [...state.matches, updatedMatch];
+
+    // 🚀 FIXED: Removed the useless initial assignment declaration to satisfy ESLint rule execution chains
+    let nextHistory: Match[];
+    if (updatedMatch.status === 'FINISHED') {
+      const historyExists = state.history.some((h) => h.id === updatedMatch.id);
+      nextHistory = historyExists
+        ? state.history.map((h) => h.id === updatedMatch.id ? updatedMatch : h)
+        : [updatedMatch, ...state.history];
+    } else {
+      nextHistory = state.history.filter((h) => h.id !== updatedMatch.id);
+    }
+
     return {
-      matches: matchExists
-        ? state.matches.map((m) => m.id === updatedMatch.id ? updatedMatch : m)
-        : [...state.matches, updatedMatch]
+      matches: nextMatches,
+      history: nextHistory
     };
   }),
 
