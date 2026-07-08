@@ -1,9 +1,9 @@
 // client/src/components/AdminPanel.tsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
-import { useTournamentStore } from '../store/useTournamentStore.js';
-import { SOCKET_URL } from '../socket';
+import { Link, useParams } from 'react-router-dom';
+import { useTournamentStore, type Match } from '../store/useTournamentStore.js';
+import { SOCKET_URL, socket } from '../socket';
 import { MatchHistory } from './MatchHistory';
 import { 
   ShieldCheck, 
@@ -33,12 +33,9 @@ interface CustomMatchExtension {
   team1_id: string;
   team2_id: string;
   match_type?: 'ROUND_ROBIN' | 'ELIMINATION';
-  
-  // 🚀 UPDATED CONTRACT: Aligned with the expanded store specifications to prevent compilation breakage on QF node hydrations
   bracket_position?: 'QF1' | 'QF2' | 'QF3' | 'QF4' | 'SF1' | 'SF2' | 'FINALS' | '3RD_PLACE' | null;
-  
-  team1?: { team_name: string };
-  team2?: { team_name: string };
+  team1?: { team_name: string; group_id?: string | null };
+  team2?: { team_name: string; group_id?: string | null };
   category?: { name: string };
   referee_name?: string | null;
   refereeName?: string | null; 
@@ -86,21 +83,25 @@ const speakMatchAnnouncementInternal = (team1: string, team2: string, court: num
 window.speakMatchAnnouncement = speakMatchAnnouncementInternal;
 
 export const AdminPanel = () => {
+  const { tournamentId } = useParams<{ tournamentId: string }>();
+
   const matches = useTournamentStore((state) => state.matches) as unknown as CustomMatchExtension[];
   const gatewayData = useTournamentStore((state) => state.gatewayData);
   const triggerAlert = useAlertStore((state) => state.triggerAlert);
   
+  const setMatches = useTournamentStore((state) => state.setMatches);
+  const setStandings = useTournamentStore((state) => state.setStandings);
+  const setHistory = useTournamentStore((state) => state.setHistory);
+  const setGatewayData = useTournamentStore((state) => state.setGatewayData);
+  const updateMatch = useTournamentStore((state) => state.updateMatch);
+
   const storeStandings = useTournamentStore((state) => state.standings) as unknown as TeamStandingModel[];
   const standings = useMemo(() => storeStandings || [], [storeStandings]);
 
   const [staffReferees, setStaffReferees] = useState<StaffProfile[]>([]);
   const [isStaffLoading, setIsStaffLoading] = useState<boolean>(true);
-  
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // =========================================================================
-  // 🎛️ STATE TRACKING FOR ACTIVE MASTER-CHILD SELECTIONS
-  // =========================================================================
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string | null>(null);
 
@@ -114,6 +115,50 @@ export const AdminPanel = () => {
   });
 
   const totalVenueCourts = gatewayData?.tournament?.court_count || 4;
+
+  const fetchTournamentData = useCallback(async () => {
+    if (!tournamentId) return;
+    try {
+      const secureToken = sessionStorage.getItem('altori_admin_token');
+      const authHeaderConfiguration = secureToken ? { headers: { Authorization: `Bearer ${secureToken}` } } : {};
+
+      const [matchesRes, standingsRes, historyRes, gatewayRes] = await Promise.all([
+        axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/matches`),
+        axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/standings`),
+        axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/matches/history`),
+        axios.get(`${SOCKET_URL}/api/tournaments/${tournamentId}/gateway`, authHeaderConfiguration) 
+      ]);
+      
+      setMatches(matchesRes.data);
+      setStandings(standingsRes.data);
+      setHistory(historyRes.data);
+      setGatewayData(gatewayRes.data); 
+    } catch (err) {
+      console.error("Administrative desk telemetry load crash:", err);
+    }
+  }, [tournamentId, setMatches, setStandings, setHistory, setGatewayData]);
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    
+    fetchTournamentData();
+    socket.emit('join-tournament-room', tournamentId);
+
+    // 🚀 FIXED: Replaced default implicit payload bindings with strict store-driven types
+    socket.on('score-live', (updatedMatch: Match) => {
+      updateMatch(updatedMatch);
+    });
+
+    socket.on('standings-refresh', () => {
+      fetchTournamentData();
+    });
+
+    return () => {
+      socket.emit('leave-tournament-room', tournamentId);
+      socket.off('score-live');
+      socket.off('standings-refresh');
+    };
+  }, [tournamentId, fetchTournamentData, updateMatch]);
 
   useEffect(() => {
     const fetchStaffReferees = async () => {
@@ -163,9 +208,6 @@ export const AdminPanel = () => {
     return new Set(currentlyLiveMatches.flatMap(m => [m.team1_id, m.team2_id]));
   }, [currentlyLiveMatches]);
 
-  // =========================================================================
-  // 🧮 MEMOIZED SELECTION LAYER DEVIATIONS
-  // =========================================================================
   const availablePendingMatches = useMemo(() => {
     const pending = matches.filter((m) => m.status === 'PENDING');
     return pending.filter(m => {
@@ -183,6 +225,13 @@ export const AdminPanel = () => {
     return Array.from(categorySet).sort();
   }, [availablePendingMatches]);
 
+  const getMatchGroup = useCallback((m: CustomMatchExtension) => {
+    if (m.match_type === 'ELIMINATION') {
+      return m.bracket_position || 'Playoffs';
+    }
+    return m.team1?.group_id || standings.find(t => t.id === m.team1_id)?.group_id || null;
+  }, [standings]);
+
   const uniqueGroupsForSelectedCategory = useMemo(() => {
     if (!selectedCategoryName) return [];
     
@@ -190,45 +239,24 @@ export const AdminPanel = () => {
     const filteredPending = availablePendingMatches.filter(m => m.category?.name === selectedCategoryName);
 
     filteredPending.forEach(m => {
-      if (m.match_type === 'ELIMINATION') {
-        if (m.bracket_position) {
-          groupSet.add(m.bracket_position);
-        } else {
-          groupSet.add('Playoffs');
-        }
-      } else {
-        const teamProfile = standings.find((t) => t.id === m.team1_id);
-        if (teamProfile?.group_id) {
-          groupSet.add(teamProfile.group_id);
-        }
-      }
+      const label = getMatchGroup(m);
+      if (label) groupSet.add(label);
     });
 
     return Array.from(groupSet).sort();
-  }, [selectedCategoryName, availablePendingMatches, standings]);
+  }, [selectedCategoryName, availablePendingMatches, getMatchGroup]);
 
   const processedPendingMatches = useMemo(() => {
     let filteredMatches = availablePendingMatches;
 
-    // Apply Sticky Master Category Button Filters
     if (selectedCategoryName) {
       filteredMatches = filteredMatches.filter(m => m.category?.name === selectedCategoryName);
     }
 
-    // Apply Sticky Dependent Child Group/Pool Buttons Filter
     if (selectedCategoryName && selectedGroupFilter) {
-      filteredMatches = filteredMatches.filter(m => {
-        if (m.match_type === 'ELIMINATION') {
-          const currentPos = m.bracket_position || 'Playoffs';
-          return currentPos === selectedGroupFilter;
-        } else {
-          const teamProfile = standings.find((t) => t.id === m.team1_id);
-          return teamProfile?.group_id === selectedGroupFilter;
-        }
-      });
+      filteredMatches = filteredMatches.filter(m => getMatchGroup(m) === selectedGroupFilter);
     }
 
-    // Apply Runtime Text Field Evaluation Layer
     const parsedQuery = searchQuery.trim().toLowerCase();
     if (parsedQuery) {
       filteredMatches = filteredMatches.filter(m => {
@@ -236,15 +264,12 @@ export const AdminPanel = () => {
         const nameT2 = m.team2?.team_name?.toLowerCase() || '';
         const division = m.category?.name?.toLowerCase() || '';
         
-        const localizedTeamDoc = standings.find((t) => t.id === m.team1_id);
-        const assignedGroup = localizedTeamDoc?.group_id?.toLowerCase() || '';
-        const positionBracket = m.match_type === 'ELIMINATION' ? (m.bracket_position?.toLowerCase() || 'playoffs') : '';
+        const assignedGroup = getMatchGroup(m)?.toLowerCase() || '';
 
         return nameT1.includes(parsedQuery) || 
                nameT2.includes(parsedQuery) || 
                division.includes(parsedQuery) || 
-               assignedGroup.includes(parsedQuery) ||
-               positionBracket.includes(parsedQuery);
+               assignedGroup.includes(parsedQuery);
       });
     }
 
@@ -255,11 +280,8 @@ export const AdminPanel = () => {
       if (!aBlocked && bBlocked) return -1;
       return 0;
     });
-  }, [availablePendingMatches, selectedCategoryName, selectedGroupFilter, searchQuery, standings, busyTeamIds]);
+  }, [availablePendingMatches, selectedCategoryName, selectedGroupFilter, searchQuery, getMatchGroup, busyTeamIds]);
 
-  // =========================================================================
-  // ⚙️ ACTION IMPLEMENTATION FLOW HANDLERS
-  // =========================================================================
   const handleCategoryFilterToggle = (categoryName: string) => {
     if (selectedCategoryName === categoryName) {
       setSelectedCategoryName(null);
@@ -399,11 +421,7 @@ export const AdminPanel = () => {
                       <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate flex items-center gap-1.5">
                         <span className="truncate">{m.category?.name || "General Category"}</span>
                         {(() => {
-                          const teamProfile = standings.find((t) => t.id === m.team1_id);
-                          const poolLabel = m.match_type === 'ELIMINATION' 
-                            ? (m.bracket_position || 'Playoffs')
-                            : (teamProfile?.group_id || null);
-                            
+                          const poolLabel = getMatchGroup(m);
                           if (!poolLabel) return null;
                           const isPlayoffStage = m.match_type === 'ELIMINATION';
                           
@@ -553,6 +571,7 @@ export const AdminPanel = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto max-h-96 pr-1 w-full">
+            {/* 🚀 FIXED: Restored the database sync layout block to naturally read isStaffLoading & Loader2 */}
             {isStaffLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 font-mono text-xs">
                 <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
@@ -615,11 +634,7 @@ export const AdminPanel = () => {
                               <span className="truncate">{match.category?.name || "General Category"}</span>
                               
                               {(() => {
-                                const teamProfile = standings.find((t) => t.id === match.team1_id);
-                                const poolLabel = match.match_type === 'ELIMINATION' 
-                                  ? (match.bracket_position || 'Playoffs')
-                                  : (teamProfile?.group_id || null);
-                                  
+                                const poolLabel = getMatchGroup(match);
                                 if (!poolLabel) return null;
                                 const isPlayoffStage = match.match_type === 'ELIMINATION';
                                 
