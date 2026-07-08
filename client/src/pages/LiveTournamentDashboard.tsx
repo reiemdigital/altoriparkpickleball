@@ -8,7 +8,6 @@ import { SOCKET_URL, socket } from '../socket';
 // Sub-Component Layer Imports
 import { CourtGrid } from '../components/CourtGrid';
 import { StandingsTable } from '../components/StandingsTable';
-import { MatchHistory } from '../components/MatchHistory';
 import { BracketView } from '../components/BracketView';
 
 // Icons
@@ -95,7 +94,6 @@ export function LiveTournamentDashboard() {
 
       let championName = "";
       let secondPlaceName = "";
-      // 🚀 FIXED: Initialize directly with fallback value to solve the no-useless-assignment rule
       let thirdPlaceName = "TBD";
       let isFinalsFinished = false;
 
@@ -121,7 +119,7 @@ export function LiveTournamentDashboard() {
         } else {
           thirdPlaceName = thirdPlaceMatch.team2?.team_name || "Unassigned 3rd Place";
         }
-      } // 🚀 FIXED: Redundant else wrapper removed to optimize engine processing paths cleanly
+      }
 
       return {
         categoryId: catId,
@@ -178,9 +176,8 @@ export function LiveTournamentDashboard() {
       {/* CONTENT PANELS MATRIX LAYER VIEW ENVELOPE */}
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
         {publicTab === 'leaderboards' ? (
-          <div className="space-y-6 max-w-6xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <StandingsTable />
-            <MatchHistory />
           </div>
         ) : publicTab === 'brackets' ? (
           <div className="max-w-6xl mx-auto">
@@ -254,7 +251,7 @@ export function LiveTournamentDashboard() {
 
                       {/* 🥉 Third Placer Card Block */}
                       <div className="w-full md:order-3 flex flex-col items-center">
-                        <div className="w-full bg-linear-to-b from-orange-400/10 to-orange-400/2 border border-orange-300/30 dark:from-orange-500/5 dark:to-slate-950/20 dark:border-slate-800/80 rounded-2xl p-4 text-center space-y-2 relative min-h-25 flex flex-col justify-center">
+                        <div className="w-full bg-linear-to-b from-orange-400/10 to-orange-400/2 border border-orange-300/30 dark:from-orange-500/5 dark:to-slate-950/20 dark:border-orange-800/80 rounded-2xl p-4 text-center space-y-2 relative min-h-25 flex flex-col justify-center">
                           <div className="absolute top-3 left-3 bg-orange-600/10 text-orange-700 dark:text-orange-400 h-6 w-6 font-mono font-bold text-xs flex items-center justify-center rounded-full">3</div>
                           <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate px-4">{div.third}</p>
                           <p className="text-[9px] font-mono uppercase tracking-wider text-orange-500/80">Bronze Medalist</p>
