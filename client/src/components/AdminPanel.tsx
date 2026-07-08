@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { useTournamentStore } from '../store/useTournamentStore.js';
 import { SOCKET_URL } from '../socket';
+import { MatchHistory } from './MatchHistory';
 import { 
   ShieldCheck, 
   UserCheck, 
@@ -98,7 +99,7 @@ export const AdminPanel = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // =========================================================================
-  // 🎛️ NEW: STATE TRACKING FOR ACTIVE MASTER-CHILD SELECTIONS
+  // 🎛️ STATE TRACKING FOR ACTIVE MASTER-CHILD SELECTIONS
   // =========================================================================
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string | null>(null);
@@ -460,9 +461,7 @@ export const AdminPanel = () => {
             </div>
           </div>
 
-          {/* =========================================================================
-           * 🚀 NEW: MASTER-CHILD STICKY BUTTON FILTERS CONTAINER VIEWPORTS
-           * ========================================================================= */}
+          {/* Master-Child Group Button Filter Rows */}
           <div className="mb-4 space-y-3 bg-slate-50/60 p-3.5 border border-slate-200/80 rounded-xl dark:bg-slate-950/40 dark:border-white/5 shrink-0 animate-in fade-in duration-200">
             
             {/* Master Category Toggles */}
@@ -693,6 +692,13 @@ export const AdminPanel = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* =========================================================================
+       * 🚀 COMPLETED MATCH LEDGER ARCHITECTURE VIEWPORT
+       * ========================================================================= */}
+      <div className="w-full pt-4 animate-in fade-in duration-300">
+        <MatchHistory />
       </div>
 
     </div>

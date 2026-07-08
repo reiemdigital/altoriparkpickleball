@@ -1170,6 +1170,195 @@ app.put('/api/matches/:id/finish', async (req: Request, res: Response) => {
   }
 });
 
+/** =======================================================
+ * 🛡️ ADMINISTRATIVE SCORE CORRECTION & ROLLBACK PIPELINE
+ * ======================================================= */
+app.put('/api/admin/matches/:id/correct-score', requireAuth(['ADMIN']), async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { score1, score2 } = req.body;
+
+  const newScore1 = parseInt(score1, 10);
+  const newScore2 = parseInt(score2, 10);
+
+  if (isNaN(newScore1) || isNaN(newScore2)) {
+    return res.status(400).json({ error: "Validation Failure: Incoming scores must be valid numeric values." });
+  }
+
+  try {
+    const { data: match, error: fetchError } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !match) {
+      return res.status(404).json({ error: "Target match record not found inside data registries." });
+    }
+
+    if (match.status !== 'FINISHED') {
+      return res.status(400).json({ error: "Operational Block: Target match is not finalized. Use active scoring channels instead." });
+    }
+
+    const oldScore1 = match.team1_score;
+    const oldScore2 = match.team2_score;
+    const oldWinnerId = oldScore1 > oldScore2 ? match.team1_id : match.team2_id;
+    const newWinnerId = newScore1 > newScore2 ? match.team1_id : match.team2_id;
+
+    // 🛡️ ELIMINATION BRACKET LOCK CONSTRAINTS CHECK
+    if (match.match_type === 'ELIMINATION') {
+      let nextWinnerPosition: string | null = null;
+      let nextLoserPosition: string | null = null;
+
+      if (match.bracket_position === 'QF1' || match.bracket_position === 'QF2') nextWinnerPosition = 'SF1';
+      else if (match.bracket_position === 'QF3' || match.bracket_position === 'QF4') nextWinnerPosition = 'SF2';
+      else if (match.bracket_position === 'SF1' || match.bracket_position === 'SF2') {
+        nextWinnerPosition = 'FINALS';
+        nextLoserPosition = '3RD_PLACE';
+      }
+
+      if (nextWinnerPosition) {
+        const { data: nextMatch } = await supabase
+          .from('matches')
+          .select('status')
+          .eq('tournament_id', match.tournament_id)
+          .eq('category_id', match.category_id)
+          .eq('match_type', 'ELIMINATION')
+          .eq('bracket_position', nextWinnerPosition)
+          .maybeSingle();
+
+        if (nextMatch && nextMatch.status !== 'PENDING') {
+          return res.status(400).json({ 
+            error: `Bracket Interlock Blocked: The downstream match (${nextWinnerPosition}) has already advanced to a '${nextMatch.status}' state. You must reset downstream matches before altering this root node.` 
+          });
+        }
+      }
+
+      if (nextLoserPosition) {
+        const { data: nextConsolationMatch } = await supabase
+          .from('matches')
+          .select('status')
+          .eq('tournament_id', match.tournament_id)
+          .eq('category_id', match.category_id)
+          .eq('match_type', 'ELIMINATION')
+          .eq('bracket_position', nextLoserPosition)
+          .maybeSingle();
+
+        if (nextConsolationMatch && nextConsolationMatch.status !== 'PENDING') {
+          return res.status(400).json({ 
+            error: `Bracket Interlock Blocked: The downstream Bronze Medal match has already transitioned into a '${nextConsolationMatch.status}' state.` 
+          });
+        }
+      }
+    }
+
+    // 🔄 PHASE 2: REVERSE ROUND-ROBIN POOL STANDINGS METRICS
+    if (match.match_type === 'ROUND_ROBIN') {
+      const { data: t1 } = await supabase.from('teams').select('*').eq('id', match.team1_id).single();
+      if (t1) {
+        await supabase.from('teams').update({
+          matches_played: Math.max(0, (t1.matches_played || 0) - 1),
+          wins: Math.max(0, (t1.wins || 0) - (oldScore1 > oldScore2 ? 1 : 0)),
+          points_for: (t1.points_for || 0) - oldScore1,
+          points_against: (t1.points_against || 0) - oldScore2
+        }).eq('id', match.team1_id);
+      }
+
+      const { data: t2 } = await supabase.from('teams').select('*').eq('id', match.team2_id).single();
+      if (t2) {
+        await supabase.from('teams').update({
+          matches_played: Math.max(0, (t2.matches_played || 0) - 1),
+          wins: Math.max(0, (t2.wins || 0) - (oldScore2 > oldScore1 ? 1 : 0)),
+          points_for: (t2.points_for || 0) - oldScore2,
+          points_against: (t2.points_against || 0) - oldScore1
+        }).eq('id', match.team2_id);
+      }
+
+      const { data: freshT1 } = await supabase.from('teams').select('*').eq('id', match.team1_id).single();
+      if (freshT1) {
+        await supabase.from('teams').update({
+          matches_played: (freshT1.matches_played || 0) + 1,
+          wins: (freshT1.wins || 0) + (newScore1 > newScore2 ? 1 : 0),
+          points_for: (freshT1.points_for || 0) + newScore1,
+          points_against: (freshT1.points_against || 0) + newScore2
+        }).eq('id', match.team1_id);
+      }
+
+      const { data: freshT2 } = await supabase.from('teams').select('*').eq('id', match.team2_id).single();
+      if (freshT2) {
+        await supabase.from('teams').update({
+          matches_played: (freshT2.matches_played || 0) + 1,
+          wins: (freshT2.wins || 0) + (newScore2 > newScore1 ? 1 : 0),
+          points_for: (freshT2.points_for || 0) + newScore2,
+          points_against: (freshT2.points_against || 0) + newScore1
+        }).eq('id', match.team2_id);
+      }
+    }
+
+    // 🚀 PHASE 3: EXECUTE CORE MUTATION & BRACKET FORWARD RE-SEEDING
+    const { data: updatedMatch, error: updateError } = await supabase
+      .from('matches')
+      .update({
+        team1_score: newScore1,
+        team2_score: newScore2
+      })
+      .eq('id', id)
+      .select('*, team1:team1_id(team_name, player1_name, player2_name, group_id), team2:team2_id(team_name, player1_name, player2_name, group_id), category:category_id(name:category_name)')
+      .single();
+
+    if (updateError || !updatedMatch) throw updateError;
+
+    if (match.match_type === 'ELIMINATION') {
+      let nextWinnerPosition = '';
+      let nextWinnerField: 'team1_id' | 'team2_id' = 'team1_id';
+      let nextLoserPosition = '';
+      let nextLoserField: 'team1_id' | 'team2_id' = 'team1_id';
+
+      if (match.bracket_position === 'QF1') { nextWinnerPosition = 'SF1'; nextWinnerField = 'team1_id'; }
+      else if (match.bracket_position === 'QF2') { nextWinnerPosition = 'SF1'; nextWinnerField = 'team2_id'; }
+      else if (match.bracket_position === 'QF3') { nextWinnerPosition = 'SF2'; nextWinnerField = 'team1_id'; }
+      else if (match.bracket_position === 'QF4') { nextWinnerPosition = 'SF2'; nextWinnerField = 'team2_id'; }
+      else if (match.bracket_position === 'SF1') { 
+        nextWinnerPosition = 'FINALS'; nextWinnerField = 'team1_id';
+        nextLoserPosition = '3RD_PLACE'; nextLoserField = 'team1_id';
+      }
+      else if (match.bracket_position === 'SF2') { 
+        nextWinnerPosition = 'FINALS'; nextWinnerField = 'team2_id';
+        nextLoserPosition = '3RD_PLACE'; nextLoserField = 'team2_id';
+      }
+
+      if (nextWinnerPosition) {
+        await supabase
+          .from('matches')
+          .update({ [nextWinnerField]: newWinnerId })
+          .eq('tournament_id', match.tournament_id)
+          .eq('category_id', match.category_id)
+          .eq('match_type', 'ELIMINATION')
+          .eq('bracket_position', nextWinnerPosition);
+      }
+
+      if (nextLoserPosition) {
+        const newLoserId = newScore1 > newScore2 ? match.team2_id : match.team1_id;
+        await supabase
+          .from('matches')
+          .update({ [nextLoserField]: newLoserId })
+          .eq('tournament_id', match.tournament_id)
+          .eq('category_id', match.category_id)
+          .eq('match_type', 'ELIMINATION')
+          .eq('bracket_position', nextLoserPosition);
+      }
+    }
+
+    io.to(`tournament:${updatedMatch.tournament_id}`).emit('score-live', { ...updatedMatch, refereeName: null, pinCode: null });
+    io.to(`tournament:${updatedMatch.tournament_id}`).emit('standings-refresh');
+
+    return res.json({ success: true, message: "Administrative match adjustment applied cleanly across layouts.", match: updatedMatch });
+
+  } catch (err: any) {
+    console.error("❌ Critical Score Correction Pipeline Exception:", err);
+    return res.status(500).json({ error: "Internal server error correcting structural data metrics.", details: err?.message || err });
+  }
+});
+
 app.get('/api/tournaments/:tournamentId/standings', async (req: Request, res: Response) => {
   const { tournamentId } = req.params;
   try {
@@ -1346,7 +1535,7 @@ app.post('/api/brackets/generate', requireAuth(['ADMIN']), async (req: Request, 
         return res.status(400).json({ error: "Seeding Aborted: All 4 core Semi-Final positions must be assigned." });
       }
 
-      const { error: sfInsertError } = await supabase.from('matches').insert([
+      const { error: sfInsertError = null } = await supabase.from('matches').insert([
         { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF1', status: 'PENDING', team1_id: t1_SF1, team2_id: t2_SF1, team1_score: 0, team2_score: 0 },
         { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'SF2', status: 'PENDING', team1_id: t1_SF2, team2_id: t2_SF2, team1_score: 0, team2_score: 0 },
         { tournament_id: tournamentId, category_id: categoryId, match_type: 'ELIMINATION', bracket_position: 'FINALS', status: 'PENDING', team1_id: null, team2_id: null, team1_score: 0, team2_score: 0 },
