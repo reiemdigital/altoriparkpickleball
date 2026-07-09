@@ -161,6 +161,23 @@ function DashboardLayout() {
                 </Link>
               );
             })}
+
+            {/* =========================================================================
+             * 🔴 HIGHLIGHTED VIEW: WATCH LIVE STREAM EXTERNAL DEPLOYMENT LINK BUTTON
+             * ========================================================================= */}
+            <a
+              href="https://www.youtube.com/@AltoriParkPickleball/live"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600 rounded-full text-[10px] tracking-wider transition-all duration-200 shadow-sm shadow-red-500/20 active:scale-95 cursor-pointer font-black ml-1 scale-100"
+              title="Launch active tournament live broadcast channel"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+              </span>
+              Watch Live Stream
+            </a>
             
             <Link 
               to="/admin" 
@@ -212,6 +229,24 @@ function DashboardLayout() {
                     </Link>
                   );
                 })}
+
+                {/* =========================================================================
+                 * 🔴 HIGHLIGHTED MOBILE DRAWER ADAPTER BUTTON VIEWPORT
+                 * ========================================================================= */}
+                <div className="py-3 px-2 flex items-center justify-start w-full">
+                  <a
+                    href="https://www.youtube.com/@AltoriParkPickleball/live"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600 rounded-xl text-xs tracking-wider transition-all duration-200 shadow-sm w-full justify-center text-center cursor-pointer font-black"
+                  >
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                    </span>
+                    Watch Live Stream
+                  </a>
+                </div>
                 
                 <Link
                   to="/admin"
