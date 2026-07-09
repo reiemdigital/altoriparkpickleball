@@ -166,7 +166,7 @@ function DashboardLayout() {
              * 🔴 HIGHLIGHTED VIEW: WATCH LIVE STREAM EXTERNAL DEPLOYMENT LINK BUTTON
              * ========================================================================= */}
             <a
-              href="https://www.youtube.com/@AltoriParkPickleball/live"
+              href="https://web.facebook.com/profile.php?id=61578979379996"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600 rounded-full text-[10px] tracking-wider transition-all duration-200 shadow-sm shadow-red-500/20 active:scale-95 cursor-pointer font-black ml-1 scale-100"
