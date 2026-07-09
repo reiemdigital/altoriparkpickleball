@@ -256,7 +256,7 @@ export function AdminWorkspaceGateway() {
         >
           {/* Subtle Terminal Running Header Element */}
           <div className="absolute top-4 right-6 flex items-center gap-1.5 font-mono text-[9px] font-black tracking-widest text-slate-500 uppercase">
-            <Terminal className="h-3 w-3 text-purple-400" /> node-v1.26.0
+            <Terminal className="h-3 w-3 text-purple-400" /> v1.0
           </div>
 
           <div className="text-center mb-6 sm:mb-8">
@@ -269,10 +269,10 @@ export function AdminWorkspaceGateway() {
               />
             </div>
             <h3 className="text-base font-black text-white font-mono uppercase tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-              Terminal Access Gateway
+              Admin Access Portal
             </h3>
             <p className="text-xs text-slate-400 mt-2 font-medium">
-              Provide dynamic verification credentials to unlock the controller core.
+              Provide your login credentials to unlock the admin dashboard.
             </p>
           </div>
 
@@ -330,7 +330,7 @@ export function AdminWorkspaceGateway() {
                     className="overflow-hidden"
                   >
                     <span className="text-[10px] text-rose-400 font-bold mt-1 uppercase tracking-wide block bg-rose-500/5 border border-rose-500/10 p-2 rounded-lg font-mono">
-                      ❌ Authentication failure. Handshake refused.
+                      ❌ Authentication failure. Please Re-try logging in.
                     </span>
                   </motion.div>
                 )}
@@ -348,7 +348,7 @@ export function AdminWorkspaceGateway() {
                   Verifying Signatures...
                 </>
               ) : (
-                <>Unlock Console Core</>
+                <>Login</>
               )}
             </button>
           </form>
